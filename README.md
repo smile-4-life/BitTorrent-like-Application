@@ -1,2 +1,2 @@
 # p2p
-The second version of Torrent-Like app
+This is the second version of Torrent-Like app
