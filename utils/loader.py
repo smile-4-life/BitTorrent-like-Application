@@ -1,3 +1,5 @@
+import struct
+
 def send_msg(sock, msg):
     try:
         msg = struct.pack('>I', len(msg)) + msg

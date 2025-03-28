@@ -19,7 +19,7 @@ def read_torrent_file(torrent_file_path):
                 raise TimeoutError(f"File {torrent_file_path} is still in use after {3} seconds.")
         tracker_URL = torrent_data.get(b'announce', b'').decode()  # x.x.x.x:y
         info = torrent_data.get(b'info')
-        file_name = info.get(b'name')
+        file_name = info.get(b'name').decode()
         piece_length = info.get(b'piece length', 0)  # 512KB
         pieces = info.get(b'pieces')  # list hash       
         file_length = info.get(b'length')

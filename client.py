@@ -19,38 +19,48 @@ logging.basicConfig(
             logging.StreamHandler()  
         ]
     )
-
 class TorrentClient:
     def __init__(self, config_path='config/clientConfig.json'):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.state = {
+            'PEERS': {},        # key: peer_addr, value: listpieces
+            'PIECES': {},       # key: piece, value: bitfield
+            'DOWNLOADED': 0,    # piece đã tải
+            'LEFT': 0           # piece còn lại
+        }
         self.load_config(config_path)
-        self.PEERS = {} # key:value - peer_addr:listpieces
-        self.PIECES = {} # key:value - piece:bitfield
-        self.DOWNLOADED = 0
-        self.LEFT = 0
 
     def load_config(self, config_path):
         if not os.path.exists(config_path):
-            logging.error("❌ Config file '{config_path}' not found.")
+            logging.error(f"❌ Config file '{config_path}' not found.")
             exit(1)
 
         with open(config_path, 'r') as f:
             config = json.load(f)
 
-        self.metainfo_file_path = config.get('metainfo_file_path', "metainfo.torrent")
-        self.client_port = config.get('client_port', 9001)
+        self.metainfo_file_path = config.get('metainfo_file_path', 'metainfo.torrent')
+        self.client_port = config.get('client_port', 8080)
 
-        (
-            self.hash_dict,
-            self.tracker_URL,
-            self.file_name,
-            self.piece_length,
-            self.pieces,
-            self.file_length,
-            self.pieces_count
-        ) = read_torrent_file(self.metainfo_file_path)
-        
-        logging.debug("✅ Loaded config: {config}")
+        try:
+            (
+                self.hash_dict,
+                self.tracker_URL,
+                self.file_name,
+                self.piece_length,
+                self.pieces,
+                self.file_length,
+                self.pieces_count
+            ) = read_torrent_file(self.metainfo_file_path)
+
+            logging.info(f"✅ Loaded config from '{config_path}':")
+            logging.info(f"   - Metainfo file: {self.metainfo_file_path}")
+            logging.info(f"   - Client port: {self.client_port}")
+            logging.info(f"   - File name: {self.file_name}, Size: {self.file_length} bytes")
+            logging.info(f"   - Pieces: {self.pieces_count}, Piece length: {self.piece_length} bytes")
+
+        except Exception as e:
+            logging.error(f"❌ Error loading torrent file: {e}")
+            exit(1)
 
     def start(self):
         self.register()
@@ -63,6 +73,7 @@ class TorrentClient:
             logging.info("connected to tracker")
         except Exception as e:
             logging.error(f"Error to register: {e}")
+
 
 if __name__ == "__main__":
     file_name = f"file-{random.randint(1000, 9999)}.txt"

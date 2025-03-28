@@ -2,6 +2,7 @@ import socket
 import threading
 import json
 import logging
+import os
 
 logging.basicConfig(
         level=logging.INFO, 
@@ -14,16 +15,26 @@ logging.basicConfig(
     )
 
 class TorrentTracker:
-    def __init__(self, host='127.0.0.1', port=8080):
-        self.host = host
-        self.port = port
+    def __init__(self, ):
+        self.load_config()
         self.peers = {}  # storage
+    
+    def load_config(self, config_path = 'config/trackerConfig.json'):
+        if not os.path.exists(config_path):
+            logging.error(f"❌ Config file '{config_path}' not found.")
+            exit(1)
+
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+
+        self.IP = config.get('tracker_ip','127.0.0.1')
+        self.port = config.get('tracker_port',8080)
 
     def start(self):
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            server.bind((self.host, self.port))
-            logging.info(f"📡 Tracker running on {self.host}:{self.port}")
+            server.bind((self.IP, self.port))
+            logging.info(f"📡 Tracker running on {self.IP}:{self.port}")
         except Exception as e:
             logging.error(f"❌This tracker is unable to bind the port: {e}")
         server.listen(5)
