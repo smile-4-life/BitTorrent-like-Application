@@ -3,13 +3,13 @@ import os
 import bencodepy
 import logging
 
-def split_file_and_create_torrent(file_path, piece_size, tracker_url, output_folder):
+def split_file_and_create_torrent(upload_file_path, metainfo_file_path, piece_size, tracker_url, output_folder):
     os.makedirs(output_folder, exist_ok=True)
 
     pieces = []
     hash_list = []
 
-    with open(file_path, 'rb') as file:
+    with open(upload_file_path, 'rb') as file:
         while True:
             piece = file.read(piece_size)
             if not piece:
@@ -29,8 +29,8 @@ def split_file_and_create_torrent(file_path, piece_size, tracker_url, output_fol
         logging.info(f"Split File into pieces DONE | stored in data/list_pieces")
 
     #  file torrent
-    file_name = os.path.basename(file_path)
-    file_size = os.path.getsize(file_path)
+    file_name = os.path.basename(upload_file_path)
+    file_size = os.path.getsize(upload_file_path)
 
     # dictionary lưu hash và đường dẫn
     piece_info = {}
@@ -48,9 +48,9 @@ def split_file_and_create_torrent(file_path, piece_size, tracker_url, output_fol
         }
     }
 
-    with open('metainfo.torrent', 'wb') as torrent_file:
+    with open(metainfo_file_path, 'wb') as torrent_file:
         torrent_file.write(bencodepy.encode(torrent_info))
-    logging.info(f"Create metainfo.torrent file DONE | Stored in torrent_factory/metainfo_container")
+    logging.info(f"Create metainfo file DONE | file_path: '{metainfo_file_path}'")
 
 def read_torrent_file(torrent_file_path):
     try:
