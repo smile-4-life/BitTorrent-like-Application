@@ -1,0 +1,6 @@
+{
+    "port": 8000,
+    "max_peers": 200,
+    "announce_interval": 30,
+    "timeout": 300
+}

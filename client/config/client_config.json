@@ -1,0 +1,8 @@
+{
+    "tracker_host": "127.0.0.1",
+    "tracker_port": 8000,
+    "download_dir": "./downloads",
+    "piece_size": 524288,
+    "algorithm": "rarest_first",
+    "max_connections": 50
+}

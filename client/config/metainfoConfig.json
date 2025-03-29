@@ -1,5 +1,5 @@
 {
-    "file_path": "video.mp4",
+    "file_path": "file_upload/video.mp4",
     "piece_size": 524288,
     "tracker_url": "127.0.0.1:8080",
     "torrent_file_path": "metainfo.torrent"
