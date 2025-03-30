@@ -8,8 +8,6 @@ import logging
 
 from utils.metainfo_utils import *
 
-from state.client_state import *
-
 from connection.tracker_client_connection import *
 
 class TorrentClient:
@@ -20,8 +18,6 @@ class TorrentClient:
         self.PIECES = {} # key:value - piece:bitfield
         self.DOWNLOADED = 0
         self.LEFT = 0
-
-        self.state = IdleState(self)
 
     def load_config(self, config_path):
         if not os.path.exists(config_path):
@@ -46,12 +42,9 @@ class TorrentClient:
         
         logging.debug("✅ Loaded config: {config}")
 
-    def change_state(self, new_state):
-        logging.info(f"State changed to: {new_state.__class__.__name__}")
-        self.state = new_state
-
     def start(self):
         self.register()
     
     def register(self):
-        self.state.connect_to_tracker()
+        self.connectTracker = ClientTracker(self)
+        self.connectTracker.register()

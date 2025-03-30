@@ -1,4 +1,4 @@
 {
-    "metainfo_file_path": "torrent_factory\\metainfo_container\\metainfo.torrent",
+    "metainfo_file_path": "torrent_manager\\metainfo_container\\metainfo.torrent",
     "client_port": 0 
 }

@@ -8,7 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from shared.config_loader import load_config
 from utils.logging_config import setup_logging
-from torrent_factory.create_torrent import choose_upload_file
+from torrent_manager.create_torrent import choose_upload_file
 from observer.client import *
 
 from state import *

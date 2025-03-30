@@ -10,13 +10,13 @@ def choose_upload_file():
     
     PIECE_SIZE = config.get("PIECE_SIZE", 512*1024)
 
-    pieces_folder = config.get("pieces_folder","torrent_factory\\data\\list_pieces") #output folder
+    pieces_folder = config.get("pieces_folder","torrent_manager\\data\\list_pieces") #output folder
 
     metainfo_container_folder = config.get("metainfo_container_folder", "metainfo_container")
     metainfo_file_name = config.get("metainfo_file_name", "metainfo.torrent")
     metainfo_file_path = os.path.join(metainfo_container_folder, metainfo_file_name)
 
-    file_upload_container_folder = config.get("file_upload_container_folder", "torrent_factory\\file_upload_container")
+    file_upload_container_folder = config.get("file_upload_container_folder", "torrent_manager\\file_upload_container")
 
 
 
