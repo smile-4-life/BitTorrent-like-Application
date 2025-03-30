@@ -1,62 +1,57 @@
 import socket
-import logging
-import threading
 import json
+import threading
+import time
+import random
 import os
+import logging
+
+from utils.metainfo_utils import *
+
+from state.client_state import *
+
+from connection.tracker_client_connection import *
 
 class TorrentClient:
-    def __init__(self, config_path="config/client_config.json"):
-        self.config_path = config_path
-        self.config = self._load_config()
-        self.tracker_host = self.config.get("tracker_host")
-        self.tracker_port = self.config.get("tracker_port")
-        self.download_dir = self.config.get("download_dir")
-        self.piece_size = self.config.get("piece_size")
-        self.algorithm = self.config.get("algorithm")
-        self.max_connections = self.config.get("max_connections")
+    def __init__(self, config_path='config/client_config.json'):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.load_config(config_path)
+        self.PEERS = {} # key:value - peer_addr:listpieces
+        self.PIECES = {} # key:value - piece:bitfield
+        self.DOWNLOADED = 0
+        self.LEFT = 0
 
-        os.makedirs(self.download_dir, exist_ok=True)
-        logging.info(f"Download directory set to: {self.download_dir}")
+        self.state = IdleState(self)
 
-    def _load_config(self):
-        try:
-            with open(self.config_path, 'r') as f:
-                return json.load(f)
-        except FileNotFoundError:
-            logging.error(f"Config file not found at: {self.config_path}")
-            exit()
-        except json.JSONDecodeError:
-            logging.error(f"Error decoding JSON in config file: {self.config_path}")
-            exit()
+    def load_config(self, config_path):
+        if not os.path.exists(config_path):
+            logging.error("❌ Config file '{config_path}' not found.")
+            exit(1)
 
-    def register_with_tracker(self):
-        try:
-            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client_socket.connect((self.tracker_host, self.tracker_port))
-            logging.info(f"✅ Connected to tracker at {self.tracker_host}:{self.tracker_port}.")
+        with open(config_path, 'r') as f:
+            config = json.load(f)
 
-            threading.Thread(target=self.listen_for_updates, args=(client_socket,)).start()
+        self.metainfo_file_path = config.get('metainfo_file_path', "metainfo.torrent")
+        self.client_port = config.get('client_port', 0)
 
-            while True:
-                message = input("Enter message to tracker: ")
-                client_socket.sendall(message.encode())
-        except ConnectionRefusedError:
-            logging.error(f"❌ Connection to tracker at {self.tracker_host}:{self.tracker_port} refused. Ensure the tracker is running.")
-        except Exception as e:
-            logging.error(f"Error connecting to tracker: {e}")
+        (
+            self.hash_dict,
+            self.tracker_URL,
+            self.file_name,
+            self.piece_length,
+            self.pieces,
+            self.file_length,
+            self.pieces_count
+        ) = read_torrent_file(self.metainfo_file_path)
+        
+        logging.debug("✅ Loaded config: {config}")
 
-    def listen_for_updates(self, client_socket):
-        try:
-            while True:
-                data = client_socket.recv(1024).decode()
-                if data:
-                    logging.info(f"📬 Update from tracker: {data}")
-                else:
-                    logging.info("Connection to tracker closed.")
-                    break
-        except ConnectionResetError:
-            logging.error("❌ Connection to tracker was reset by the server.")
-        except Exception as e:
-            logging.error(f"Error receiving updates: {e}")
-        finally:
-            client_socket.close()
+    def change_state(self, new_state):
+        logging.info(f"State changed to: {new_state.__class__.__name__}")
+        self.state = new_state
+
+    def start(self):
+        self.register()
+    
+    def register(self):
+        self.state.connect_to_tracker()

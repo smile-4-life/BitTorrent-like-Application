@@ -11,18 +11,21 @@ from utils.logging_config import setup_logging
 from torrent_factory.create_torrent import choose_upload_file
 from observer.client import *
 
+from state import *
+
 CONFIG_PATH = "config/client_config.json"
 config = load_config(CONFIG_PATH)
 
 def main():
     setup_logging()
     
-    if len(sys.argv) > 1 and sys.argv[1] == "register-seed":
+    if len(sys.argv) > 1 and sys.argv[1] == "seed":
         logging.info("[Start seeding your file]")
         choose_upload_file()
 
     else:
         client = TorrentClient()
+        client.register()
 
     #connect_tracker()
 

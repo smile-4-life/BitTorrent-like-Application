@@ -72,7 +72,7 @@ def read_torrent_file(torrent_file_path):
         hash_dict = {piece_hash.decode(): 0 for piece_hash in pieces.keys()} 
     except Exception as e:
         logging.error(f"Error when dealing with torrent file: {e}")
-    return hash_dict, tracker_URL, file_name, piece_length, piece_length, pieces, file_length, pieces_count
+    return hash_dict, tracker_URL, file_name, piece_length, pieces, file_length, pieces_count
 
 def print_torrent_file(torrent_file_path):
     with open(torrent_file_path, 'rb') as torrent_file:
