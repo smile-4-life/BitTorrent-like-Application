@@ -1,29 +1,35 @@
 import logging
 import json
-from connection.client_handler import connect_to_tracker, send_register_request, send_unregister_request, send_hash_list
+
+from utils.load_config import load_config
+from connection.client_handler import HandleTracker
 from utils.metainfo_utils import read_torrent_file
 
+MY_IP = "127.0.0.2"
+CONFIG_PATH = "config\\client_config.json"
+
 class ClientObserver:
-    def __init__(self, client_ip, client_port, tracker_url):
-        self.client_ip = client_ip
-        self.client_port = client_port
-        self.tracker_url = tracker_url
-        self.hash_dict = {}
+    def __init__(self):
+
+        config = load_config(CONFIG_PATH)
+        self.metainfo_file_path = config['metainfo_file_path']
+        self.myPort = config['client_port']
+    
+        (
+            self.hash_dict, 
+            self.tracker_URL, 
+            self.file_name, 
+            self.piece_length, 
+            self.pieces, 
+            self.file_length, 
+            self.pieces_count ) = read_torrent_file(self.metainfo_file_path)
 
     def register_peer(self):
-        """Register the client with the tracker and return its assigned address."""
-        tracker_socket = connect_to_tracker(self.tracker_url)
-        if tracker_socket is None:
-            return None
-
-        try:
-            this_addr = send_register_request(tracker_socket, self.client_ip, self.client_port)
-            if this_addr:
-                send_hash_list(tracker_socket, self.hash_dict)
-            return this_addr
-        finally:
-            tracker_socket.close()
+        handler = HandleTracker(self)
+        sock = handler.connect_to_tracker(self.tracker_URL)
+        response = handler.send_register_request(sock, MY_IP, self.myPort)
+        logging.info(f"Response: {response}")
+        sock.close()
 
     def unregister(self):
-        """Unregister the client from the tracker."""
         send_unregister_request(self.tracker_url, self.client_ip, self.client_port)

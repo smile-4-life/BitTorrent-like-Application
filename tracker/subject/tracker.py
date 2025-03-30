@@ -2,7 +2,6 @@ import logging
 import threading
 
 class TrackerSubject:
-    """Observer pattern to manage peer registration."""
     def __init__(self):
         self.peers = {}
         self.data_lock = threading.Lock()

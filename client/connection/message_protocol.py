@@ -30,3 +30,29 @@ def recvall(sock, n):
             return None
         data.extend(packet)
     return data
+
+def encode_data(data):
+    if isinstance(data, dict):
+        data_type = b'DICT'
+        encoded_data = json.dumps(data).encode()
+    elif isinstance(data, list):
+        data_type = b'LIST'
+        encoded_data = json.dumps(data).encode()
+    elif isinstance(data, bytes):
+        data_type = b'BIN '
+        encoded_data = data
+    else:
+        data_type = b'RAW '
+        encoded_data = str(data).encode()
+    
+    return data_type, encoded_data
+
+def decode_data(data_type, data):
+    if data_type == b'DICT':
+        return json.loads(data.decode()) 
+    elif data_type == b'LIST':
+        return json.loads(data.decode())  
+    elif data_type == b'BIN ':
+        return data  
+    else:
+        return data.decode() 
