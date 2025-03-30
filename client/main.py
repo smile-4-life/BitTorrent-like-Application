@@ -1,33 +1,37 @@
-import sys
-import os
 import json
 import logging
+import threading
+from observer.client import ClientObserver
+from utils.metainfo_utils import read_torrent_file
 
-# Add the parent directory to the path to resolve the shared module
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# Load configuration
+with open("config/client_config.json", 'r') as f:
+    config = json.load(f)
 
-from shared.config_loader import load_config
-from utils.logging_config import setup_logging
-from torrent_manager.create_torrent import choose_upload_file
-from observer.client import *
+METAINFO_FILE_PATH = config["metainfo_file_path"]
+CLIENT_PORT = config["client_port"]
 
-from state import *
-
-CONFIG_PATH = "config/client_config.json"
-config = load_config(CONFIG_PATH)
-
-def main():
-    setup_logging()
-    
-    if len(sys.argv) > 1 and sys.argv[1] == "seed":
-        logging.info("[Start seeding your file]")
-        choose_upload_file()
-
-    else:
-        client = TorrentClient()
-        client.register()
-
-    #connect_tracker()
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt='%H:%M:%S',
+    handlers=[logging.StreamHandler()]
+)
 
 if __name__ == "__main__":
-    main()
+    client_ip = "0.0.0.0"
+    
+    hash_dict, tracker_url, file_name, piece_length, pieces, file_length, pieces_count = read_torrent_file(METAINFO_FILE_PATH)
+
+    client = ClientObserver(client_ip, CLIENT_PORT, tracker_url)
+    client.hash_dict = hash_dict
+
+    this_addr = client.register_peer()
+    if this_addr is None:
+        exit()
+
+    client_ip = this_addr.split(":")[0]
+    
+    threading.Thread(target=client.unregister, daemon=True).start()
+    
+    input("Enter to quit.")

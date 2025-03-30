@@ -1,43 +1,33 @@
-import socket
-import threading
-import json
 import logging
+import threading
 
-logging.basicConfig(
-        level=logging.INFO, 
-        format="%(asctime)s - %(levelname)s - %(message)s",
-        datefmt='%H:%M:%S',
-        handlers=[
-            #logging.FileHandler("client.log"), 
-            logging.StreamHandler()  
-        ]
-    )
+class TrackerSubject:
+    """Observer pattern to manage peer registration."""
+    def __init__(self):
+        self.peers = {}
+        self.data_lock = threading.Lock()
 
-class TorrentTracker:
-    def __init__(self, host='127.0.0.1', port=8080):
-        self.host = host
-        self.port = port
-        self.peers = {}  # storage
+    def register_peer(self, peer_addr):
+        with self.data_lock:
+            if peer_addr not in self.peers:
+                self.peers[peer_addr] = []
+                logging.info(f"✅ Registered peer: {peer_addr}")
+                return True
+            logging.warning(f"⚠️ Peer already registered: {peer_addr}")
+            return False
 
-    def start(self):
-        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            server.bind((self.host, self.port))
-            logging.info(f"📡 Tracker running on {self.host}:{self.port}")
-        except Exception as e:
-            logging.error(f"❌This tracker is unable to bind the port: {e}")
-        server.listen(5)
+    def update_piece(self, peer_addr, hash_value):
+        with self.data_lock:
+            if peer_addr in self.peers:
+                self.peers[peer_addr].append(hash_value)
+                logging.info(f"🔄 Updated downloaded hash {hash_value} from peer {peer_addr}.")
 
-        while True:
-            client_socket, addr = server.accept()
-            logging.info(f"🔗 Connection from: {addr}")
-            threading.Thread(target=self.handle_client, args=(client_socket,)).start()
+    def get_peers(self):
+        with self.data_lock:
+            return self.peers.copy()
 
-
-    def handle_client(self, sock):
-        logging.info(f"Handle client")
-
-
-if __name__ == "__main__":
-    tracker = TorrentTracker()
-    tracker.start()
+    def unregister_peer(self, peer_addr):
+        with self.data_lock:
+            if peer_addr in self.peers:
+                del self.peers[peer_addr]
+                logging.info(f"❌ Unregistered peer: {peer_addr}")

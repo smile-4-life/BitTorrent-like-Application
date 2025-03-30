@@ -1,6 +1,4 @@
 {
-    "port": 8000,
-    "max_peers": 200,
-    "announce_interval": 30,
-    "timeout": 300
+    "tracker_IP": "127.0.0.1",
+    "tracker_port": 8080
 }
