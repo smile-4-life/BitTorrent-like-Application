@@ -2,7 +2,7 @@ import logging
 import json
 
 from utils.load_config import load_config
-from connection.handle_tracker import HandleTracker
+from connection.tracker_connection import HandleTracker
 from utils.metainfo_utils import read_torrent_file
 
 MY_IP = "127.0.0.2"
@@ -28,8 +28,9 @@ class ClientObserver:
         self.register()
 
     def register(self):
-        handler = HandleTracker(self)
-        handler.send_register_request()
+        tracker_connect = HandleTracker(self)
+        tracker_connect.send_register_request()
 
     def unregister(self):
-        send_unregister_request(self.tracker_url, self.client_ip, self.client_port)
+        tracker_connect = HandleTracker(self)
+        tracker_connect.send_unregister_request()
