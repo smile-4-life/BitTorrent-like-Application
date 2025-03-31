@@ -1,14 +1,13 @@
 import socket
 import json
 import logging
-from connection.message_protocol import send_msg, recv_msg
+from connection.message_protocol import *
 
 class HandleTracker:
     def __init__(self, client_observer:object):
         self.client_observer = client_observer
 
     def connect_to_tracker(self,tracker_url):
-        """Establish a connection to the tracker and return the socket."""
         try:
             tracker_ip, tracker_port = tracker_url.split(':')
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -18,21 +17,23 @@ class HandleTracker:
             logging.error(f"Failed to connect to tracker: {e}")
             return None
 
-    def send_register_request(self,sock, client_ip, client_port):
-        """Send a REGISTER request to the tracker and return the assigned address."""
+    def send_register_request(self):
+        sock = self.connect_to_tracker(self.client_observer.tracker_URL)
         try:
-            sock.send(f"REGISTER {client_ip} {client_port}".encode())
-            response = sock.recv(1024).decode().split(":")
-            logging.info(response[0])
-            if len(response) >= 3:
-                return f"{response[1]}:{response[2]}"
+            dictMsg = {"port": self.client_observer.port}
+            biMsg = encode_data("REGISTER",dictMsg)
+            send_msg(sock,biMsg)
+            raw_response = recv_msg(sock)
+            response = decode_data(raw_response)
+            logging.info(f"Response from tracker: {response.get("response")}")
             return None
         except Exception as e:
             logging.error(f"Error during registration: {e}")
             return None
+        finally:
+            sock.close()
 
-    def send_unregister_request(tracker_url, client_ip, client_port):
-        """Send an UNREGISTER request to the tracker."""
+    def send_unregister_request(self,tracker_url, client_ip, client_port):
         sock = connect_to_tracker(tracker_url)
         if sock is None:
             return
@@ -47,7 +48,6 @@ class HandleTracker:
             sock.close()
 
     def send_hash_list(sock, hash_dict):
-        """Send available piece hashes to the tracker."""
         try:
             response = sock.recv(1024).decode()
             if response == "REQUEST_HASH_LIST":

@@ -1,5 +1,14 @@
 import struct
 import logging
+import json
+from enum import Enum 
+
+class OpCode(Enum):
+    REGISTER = 0x01
+    UNREGISTER = 0x02
+    UPDATE = 0x03
+    SENDDICT = 0x04
+    RESPONSE = 0x05
 
 def send_msg(sock, msg):
     """Send a message with a length prefix."""
@@ -31,28 +40,38 @@ def recvall(sock, n):
         data.extend(packet)
     return data
 
-def encode_data(data):
-    if isinstance(data, dict):
-        data_type = b'DICT'
-        encoded_data = json.dumps(data).encode()
-    elif isinstance(data, list):
-        data_type = b'LIST'
-        encoded_data = json.dumps(data).encode()
-    elif isinstance(data, bytes):
-        data_type = b'BIN '
-        encoded_data = data
-    else:
-        data_type = b'RAW '
-        encoded_data = str(data).encode()
-    
-    return data_type, encoded_data
+def encode_data(opcode: str, data: dict):
+    """Encode data into binary format with an opcode."""
+    if opcode == "REGISTER":
+        return struct.pack(">BH", OpCode.REGISTER.value, data.get("port"))
 
-def decode_data(data_type, data):
-    if data_type == b'DICT':
-        return json.loads(data.decode()) 
-    elif data_type == b'LIST':
-        return json.loads(data.decode())  
-    elif data_type == b'BIN ':
-        return data  
-    else:
-        return data.decode() 
+    if opcode == "UNREGISTER":
+        return struct.pack(">BH", OpCode.UNREGISTER.value, data.get("port"))
+
+    if opcode in {"UPDATE", "SENDDICT"}:
+        json_data = json.dumps(data).encode("utf-8")
+        return struct.pack(">BI", OpCode[opcode].value, len(json_data)) + json_data
+
+    if opcode == "RESPONSE":
+        response_msg = data.get("response", "").encode("utf-8")
+        return struct.pack(">BI", OpCode.RESPONSE.value, len(response_msg)) + response_msg
+
+    return None
+
+def decode_data(binary_data):
+    """Decode binary data into structured format."""
+    opcode_value = struct.unpack(">B", binary_data[:1])[0]
+    opcode = OpCode(opcode_value)
+
+    if opcode == OpCode.REGISTER:
+        return {"opcode": "REGISTER", "port": struct.unpack(">H", binary_data[1:3])[0]}
+    
+    if opcode == OpCode.UNREGISTER:
+        return {"opcode": "UNREGISTER", "port": struct.unpack(">H", binary_data[1:3])[0]}
+
+    if opcode == OpCode.RESPONSE:
+        response_length = struct.unpack(">I", binary_data[1:5])[0]
+        response_data = binary_data[5:5 + response_length].decode("utf-8")
+        return {"opcode": "RESPONSE", "response": response_data}
+
+    return None

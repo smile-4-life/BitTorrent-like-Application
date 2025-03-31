@@ -2,7 +2,7 @@ import logging
 import json
 
 from utils.load_config import load_config
-from connection.client_handler import HandleTracker
+from connection.handle_tracker import HandleTracker
 from utils.metainfo_utils import read_torrent_file
 
 MY_IP = "127.0.0.2"
@@ -13,7 +13,7 @@ class ClientObserver:
 
         config = load_config(CONFIG_PATH)
         self.metainfo_file_path = config['metainfo_file_path']
-        self.myPort = config['client_port']
+        self.port = config['client_port']
     
         (
             self.hash_dict, 
@@ -24,12 +24,12 @@ class ClientObserver:
             self.file_length, 
             self.pieces_count ) = read_torrent_file(self.metainfo_file_path)
 
-    def register_peer(self):
+    def start(self):
+        self.register()
+
+    def register(self):
         handler = HandleTracker(self)
-        sock = handler.connect_to_tracker(self.tracker_URL)
-        response = handler.send_register_request(sock, MY_IP, self.myPort)
-        logging.info(f"Response: {response}")
-        sock.close()
+        handler.send_register_request()
 
     def unregister(self):
         send_unregister_request(self.tracker_url, self.client_ip, self.client_port)
