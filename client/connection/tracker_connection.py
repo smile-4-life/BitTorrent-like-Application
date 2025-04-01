@@ -47,12 +47,12 @@ class HandleTracker:
         finally:
             sock.close()
 
-    def send_hash_list(sock, hash_dict):
+    def send_bit_field(self,sock, piece_bitfield):
         try:
             response = sock.recv(1024).decode()
             if response == "REQUEST_HASH_LIST":
-                data = json.dumps(list(hash_dict.keys())).encode() if hash_dict else "BLANK".encode()
+                data = json.dumps(list(piece_bitfield.keys())).encode() if piece_bitfield else "BLANK".encode()
                 send_msg(sock, data)
-                logging.info(f"Sent hash list to tracker: {len(hash_dict)} pieces")
+                logging.info(f"Sent hash list to tracker: {len(piece_bitfield)} pieces")
         except Exception as e:
             logging.error(f"Error uploading hash list: {e}")

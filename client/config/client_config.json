@@ -1,4 +1,5 @@
 {
+    "client_port": 12345,
     "metainfo_file_path": "torrent_manager\\metainfo_container\\metainfo.torrent",
-    "client_port": 0 
+    "download_folder_path": "downloads"
 }
