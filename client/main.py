@@ -10,9 +10,5 @@ from utils.metainfo_utils import read_torrent_file
 
 if __name__ == "__main__":
     setup_logger()
-
-    client_ip = "0.0.0.0"
-
     client = ClientObserver()
-
     client.start()

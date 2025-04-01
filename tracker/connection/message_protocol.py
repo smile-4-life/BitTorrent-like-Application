@@ -43,14 +43,12 @@ def recvall(sock, n):
 def encode_data(opcode: str, data: dict):
     """Encode data into binary format with an opcode."""
     if opcode == "REGISTER":
-        return struct.pack(">BH", OpCode.REGISTER.value, data.get("port"))
-
+        list_pieces = data.get("list_pieces", [])
+        pieces_json = json.dumps(list_pieces).encode("utf-8")
+        return struct.pack(">BHI", OpCode.REGISTER.value, data.get("port"), len(pieces_json)) + pieces_json
+    
     if opcode == "UNREGISTER":
         return struct.pack(">BH", OpCode.UNREGISTER.value, data.get("port"))
-
-    if opcode in {"UPDATE", "SENDDICT"}:
-        json_data = json.dumps(data).encode("utf-8")
-        return struct.pack(">BI", OpCode[opcode].value, len(json_data)) + json_data
 
     if opcode == "RESPONSE":
         response_msg = data.get("response", "").encode("utf-8")
@@ -64,7 +62,10 @@ def decode_data(binary_data):
     opcode = OpCode(opcode_value)
 
     if opcode == OpCode.REGISTER:
-        return {"opcode": "REGISTER", "port": struct.unpack(">H", binary_data[1:3])[0]}
+        port, list_pieces_length = struct.unpack(">HI", binary_data[1:7])
+        list_pieces_json = binary_data[7:7 + list_pieces_length].decode("utf-8")
+        list_pieces = json.loads(list_pieces_json)  # Convert JSON back to list
+        return {"opcode": "REGISTER", "port": port, "list_pieces": list_pieces}
     
     if opcode == OpCode.UNREGISTER:
         return {"opcode": "UNREGISTER", "port": struct.unpack(">H", binary_data[1:3])[0]}

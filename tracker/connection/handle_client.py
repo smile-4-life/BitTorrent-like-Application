@@ -7,13 +7,14 @@ class HandleClient:
         self.tracker_object = tracker_object
 
     def handle_register(self, client_socket, client_ip, dictMsg):
-        client_port = dictMsg.get("port",None)
+        client_port = dictMsg.get("port")
+        list_pieces = dictMsg.get("list_pieces")
         if client_port is None:
             logging.warning(f"Invalid REGISTER request from {client_ip}: {dictMsg}")
             return
 
         client_addr =(client_ip,client_port)
-        if self.tracker_object.register_peer(client_addr):
+        if self.tracker_object.register_peer(client_addr, list_pieces):
             response = {"response": "REGISTER SUCCESS"}
         else:
             response = {"response": "ALREADY REGISTERED"}

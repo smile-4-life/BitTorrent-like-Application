@@ -7,9 +7,9 @@ class HandleTracker:
     def __init__(self, client_observer:object):
         self.client_observer = client_observer
 
-    def connect_to_tracker(self,tracker_url):
+    def connect_to_tracker(self):
         try:
-            tracker_ip, tracker_port = tracker_url.split(':')
+            tracker_ip, tracker_port = self.client_observer.tracker_URL.split(':')
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.connect((tracker_ip, int(tracker_port)))
             return sock
@@ -18,9 +18,14 @@ class HandleTracker:
             return None
 
     def send_register_request(self):
-        sock = self.connect_to_tracker(self.client_observer.tracker_URL)
+        sock = self.connect_to_tracker()
         try:
-            dictMsg = {"port": self.client_observer.port}
+            list_pieces = [piece for piece in self.client_observer.piece_bitfield.keys() if self.client_observer.piece_bitfield[piece]]
+            print(f"{list_pieces}")
+            dictMsg = {
+                "port": self.client_observer.port,
+                "piece_bitfield": list_pieces
+            }
             biMsg = encode_data("REGISTER",dictMsg)
             send_msg(sock,biMsg)
             raw_response = recv_msg(sock)

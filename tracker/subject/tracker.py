@@ -35,7 +35,6 @@ class TrackerSubject:
             while self.is_running:
                 client_sock, addr = tracker_socket.accept()
                 executor.submit(self.handle_client, client_sock, addr[0])
-                    
 
     def handle_client(self, client_socket, client_ip):
         handler = HandleClient(self) 
@@ -56,13 +55,15 @@ class TrackerSubject:
         finally:
             client_socket.close()
 
-    def register_peer(self, peer_addr):
+    def register_peer(self, peer_addr, list_pieces):
         with self.data_lock:
             if peer_addr not in self.peers:
-                self.peers[peer_addr] = []  #join peer
+                self.peers[peer_addr] = list_pieces  #join peer - add new key-values
+                print(f"{self.peers[peer_addr]}")
                 logging.info(f"✅ Registered peer: {peer_addr}")
                 return True
-            logging.warning(f"⚠️ Peer already registered: {peer_addr}")
+            else:
+                logging.info(f"⚠️ Peer already registered: {peer_addr}")
             return False
 
     def unregister_peer(self, peer_addr):
@@ -73,8 +74,4 @@ class TrackerSubject:
                 return True
             logging.warning(f"⚠️ Peer have not registered: {peer_addr}")
             return False
-
-    def update_pieces(self, peer_addr, list_pieces):
-        with self.data_lock:
-            self.peers[peer_addr] = list_pieces
     

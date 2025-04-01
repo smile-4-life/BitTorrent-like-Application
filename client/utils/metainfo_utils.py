@@ -65,9 +65,9 @@ def read_torrent_file(torrent_file_path):
         info = torrent_data.get(b'info')
         file_name = info.get(b'name')
         piece_length = info.get(b'piece length', 0)  # 512KB
-        pieces = info.get(b'pieces')  # list hash       
+        list_pieces = info.get(b'pieces')  # list hash       
         file_length = info.get(b'length')
-        pieces_count = len(pieces)
+        pieces_count = len(list_pieces)
         # default bitfield 0 indicate client has not had this piece 
     except Exception as e:
         logging.error(f"Error when dealing with torrent file: {e}")

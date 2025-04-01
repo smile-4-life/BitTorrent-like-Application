@@ -1,5 +1,7 @@
 import logging
 import json
+import threading
+import os
 
 from utils.load_config import load_config
 from connection.tracker_connection import HandleTracker
@@ -13,7 +15,7 @@ class ClientObserver:
         config = load_config(CONFIG_PATH)
         self.port = config['client_port']
         self.metainfo_file_path = config['metainfo_file_path']
-        self.download_folder_path = config.['download_folder_path']
+        self.download_folder_path = config['download_folder_path']
     
         (
             self.tracker_URL, 
@@ -24,7 +26,7 @@ class ClientObserver:
             self.pieces_count ) = read_torrent_file(self.metainfo_file_path)
         
         self.piece_bitfield = {piece_ : 0 for piece_ in self.list_pieces} #defaut bit-filed 0 
-        self.bit_field_lock = threading.lock()
+        self.bit_field_lock = threading.Lock()
 
         #self.bit_field = lambda piece_: { piece_: 0 for piece_ in pieces }
 
