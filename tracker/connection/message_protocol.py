@@ -65,14 +65,23 @@ def decode_data(binary_data):
         port, list_pieces_length = struct.unpack(">HI", binary_data[1:7])
         list_pieces_json = binary_data[7:7 + list_pieces_length].decode("utf-8")
         list_pieces = json.loads(list_pieces_json)  # Convert JSON back to list
-        return {"opcode": "REGISTER", "port": port, "list_pieces": list_pieces}
+        return {
+            "opcode": "REGISTER", 
+            "port": port, 
+            "list_pieces": list_pieces
+            }
     
     if opcode == OpCode.UNREGISTER:
-        return {"opcode": "UNREGISTER", "port": struct.unpack(">H", binary_data[1:3])[0]}
+        return {
+            "opcode": "UNREGISTER", 
+            "port": struct.unpack(">H", binary_data[1:3])[0]
+            }
 
     if opcode == OpCode.RESPONSE:
         response_length = struct.unpack(">I", binary_data[1:5])[0]
         response_data = binary_data[5:5 + response_length].decode("utf-8")
-        return {"opcode": "RESPONSE", "response": response_data}
+        return {
+            "opcode": "RESPONSE", 
+            "response": response_data}
 
     return None

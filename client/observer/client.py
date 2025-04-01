@@ -35,11 +35,13 @@ class ClientObserver:
         self.register()
 
     def register(self):
-        tracker_connect = HandleTracker(self)
-        tracker_connect.send_register_request()
+        list_pieces = [piece for piece in self.client_observer.piece_bitfield.keys() if self.client_observer.piece_bitfield[piece]]
+
+        tracker_connect = HandleTracker()
+        tracker_connect.send_register_request(list_pieces)
 
     def unregister(self):
-        tracker_connect = HandleTracker(self)
+        tracker_connect = HandleTracker()
         tracker_connect.send_unregister_request()
 
     def update_downloaded_pieces(self):

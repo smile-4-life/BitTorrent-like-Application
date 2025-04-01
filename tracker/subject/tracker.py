@@ -37,7 +37,7 @@ class TrackerSubject:
                 executor.submit(self.handle_client, client_sock, addr[0])
 
     def handle_client(self, client_socket, client_ip):
-        handler = HandleClient(self) 
+        Handler = HandleClient() 
         try:
             biMsg = recv_msg(client_socket)
             if not biMsg:
@@ -48,7 +48,8 @@ class TrackerSubject:
             logging.info(f"Received message from {client_ip}: {dictMsg}")
 
             if dictMsg.get("opcode") == "REGISTER":
-                handler.handle_register(client_socket,client_ip,dictMsg)
+                new_peer = Handler.handle_register(client_socket,client_ip,dictMsg)
+                self.peers.update(new_peer)
                 
         except Exception as e:
             logging.error(f"Error handling client {client_ip}: {e}")

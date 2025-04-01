@@ -4,8 +4,7 @@ import logging
 from connection.message_protocol import *
 
 class HandleTracker:
-    def __init__(self, client_observer:object):
-        self.client_observer = client_observer
+    def __init__(self):
 
     def connect_to_tracker(self):
         try:
@@ -17,11 +16,9 @@ class HandleTracker:
             logging.error(f"Failed to connect to tracker: {e}")
             return None
 
-    def send_register_request(self):
+    def send_register_request(self, list_pieces):
         sock = self.connect_to_tracker()
         try:
-            list_pieces = [piece for piece in self.client_observer.piece_bitfield.keys() if self.client_observer.piece_bitfield[piece]]
-            print(f"{list_pieces}")
             dictMsg = {
                 "port": self.client_observer.port,
                 "piece_bitfield": list_pieces
