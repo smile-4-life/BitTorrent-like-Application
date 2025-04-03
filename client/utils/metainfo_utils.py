@@ -3,11 +3,16 @@ import os
 import bencodepy
 import logging
 
-def split_file_and_create_torrent(upload_file_path, metainfo_file_path, piece_size, tracker_url, output_folder):
+def split_file_and_create_torrent(upload_file_path, metainfo_file_path, tracker_url, output_folder):
     os.makedirs(output_folder, exist_ok=True)
 
     pieces = []
     hash_list = []
+
+    #  file torrent
+    file_name = os.path.basename(upload_file_path)
+    file_size = os.path.getsize(upload_file_path)
+    piece_size = estimate_piece_size(file_size)
 
     with open(upload_file_path, 'rb') as file:
         while True:
@@ -28,10 +33,6 @@ def split_file_and_create_torrent(upload_file_path, metainfo_file_path, piece_si
             logging.debug(f"{piece_file_path}: Hash = {piece_hash}")
         logging.info(f"Split File into pieces DONE | stored in data/list_pieces")
 
-    #  file torrent
-    file_name = os.path.basename(upload_file_path)
-    file_size = os.path.getsize(upload_file_path)
-
     # dictionary lưu hash và đường dẫn
     piece_info = {}
     for i, piece_hash in enumerate(hash_list):
@@ -51,6 +52,23 @@ def split_file_and_create_torrent(upload_file_path, metainfo_file_path, piece_si
     with open(metainfo_file_path, 'wb') as torrent_file:
         torrent_file.write(bencodepy.encode(torrent_info))
     logging.info(f"Create metainfo file DONE | file_path: '{metainfo_file_path}'")
+
+def estimate_piece_size(file_size):
+    MB = 1024 * 1024
+    file_size_mb = file_size / MB
+
+    if file_size_mb <= 100:
+        return 64 * 1024  # 64 KB
+    elif file_size_mb <= 1024:
+        return 256 * 1024  # 256 KB
+    elif file_size_mb <= 4096:
+        return 512 * 1024  # 512 KB
+    elif file_size_mb < 10240:
+        return 1024 * 1024  # 1 MB
+    elif file_size_mb < 50000:
+        return 2 * MB  # 2 MB
+    else:
+        return 4 * MB  # 4 MB
 
 def read_torrent_file(torrent_file_path):
     try:

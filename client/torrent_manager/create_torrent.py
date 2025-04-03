@@ -7,8 +7,6 @@ from utils.metainfo_utils import split_file_and_create_torrent, print_torrent_fi
 def choose_upload_file():
 
     config = _load_config()
-    
-    PIECE_SIZE = config.get("PIECE_SIZE", 512*1024)
 
     pieces_folder = config.get("pieces_folder","torrent_manager\\data\\list_pieces") #output folder
 
@@ -33,7 +31,7 @@ def choose_upload_file():
             logging.warn(f"Please double check the file name or move the file to the correct folder.")
             return
         
-        split_file_and_create_torrent(upload_file_path, metainfo_file_path, PIECE_SIZE, tracker_URL, pieces_folder)
+        split_file_and_create_torrent(upload_file_path, metainfo_file_path, tracker_URL, pieces_folder)
         
         print_torrent_file(metainfo_file_path)
 

@@ -3,8 +3,8 @@ import json
 import threading
 import os
 
-from utils.load_config import load_config
 from connection.tracker_connection import HandleTracker
+from utils.load_config import load_config
 from utils.metainfo_utils import read_torrent_file
 
 CONFIG_PATH = "config\\client_config.json"
@@ -25,20 +25,20 @@ class ClientObserver:
             self.file_length, 
             self.pieces_count ) = read_torrent_file(self.metainfo_file_path)
         
-        self.piece_bitfield = {piece_ : 0 for piece_ in self.list_pieces} #defaut bit-filed 0 
+        ''''''
+        self.piece_bitfield = {piece_ : 0 for piece_ in self.list_pieces}   #defaut bit-filed 0 
         self.bit_field_lock = threading.Lock()
-
-        #self.bit_field = lambda piece_: { piece_: 0 for piece_ in pieces }
+        ''''''
 
     def start(self):
         self.update_downloaded_pieces()
         self.register()
 
     def register(self):
-        list_pieces = [piece for piece in self.client_observer.piece_bitfield.keys() if self.client_observer.piece_bitfield[piece]]
+        list_pieces = [piece for piece in self.piece_bitfield.keys() if self.piece_bitfield[piece]]
 
         tracker_connect = HandleTracker()
-        tracker_connect.send_register_request(list_pieces)
+        tracker_connect.send_register_request(self.port, self.tracker_URL, list_pieces)
 
     def unregister(self):
         tracker_connect = HandleTracker()
@@ -50,4 +50,6 @@ class ClientObserver:
             if file.endswith('.bin'):
                 piece_hash = file[:-4]
                 self.piece_bitfield[piece_hash] = 1
+
+    
                 

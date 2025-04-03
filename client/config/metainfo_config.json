@@ -1,5 +1,4 @@
 {
-    "PIECE_SIZE" : 524288,
     "pieces_folder": "torrent_manager\\data\\list_pieces",
     "file_upload_container_folder": "torrent_manager\\file_upload_container",
     "metainfo_container_folder": "torrent_manager\\metainfo_container",
