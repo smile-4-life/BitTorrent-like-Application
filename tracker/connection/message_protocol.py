@@ -1,4 +1,5 @@
 import struct
+import socket
 import logging
 import json
 import sys
@@ -11,8 +12,7 @@ class OpCode(Enum):
     GETPEER = 0x04
     GIVEPEER = 0x05
 
-def send_msg(sock, msg):
-    """Send a message with a length prefix."""
+def send_msg(sock, msg:bytes):
     try:
         msg = struct.pack('>I', len(msg)) + msg
         sock.sendall(msg)
@@ -20,24 +20,20 @@ def send_msg(sock, msg):
         logging.error(f"Error sending message: {e}")
 
 def recv_msg(sock):
-    """Receive a message with a length prefix."""
     try:
-        raw_msglen = recvall(sock, 4)
-        if not raw_msglen:
-            return None
+        raw_msglen = recvall(sock, 4)            
         msglen = struct.unpack('>I', raw_msglen)[0]
         return recvall(sock, msglen)
     except Exception as e:
         logging.error(f"Error receiving message: {e}")
-        return None
 
-def recvall(sock, n):
-    """Ensure all data is received."""
+def recvall(sock, n:int):
     data = bytearray()
     while len(data) < n:
         packet = sock.recv(n - len(data))
         if not packet:
-            return None
+            logging.error(f"Failed to receive expected data. Only {len(data)} bytes received, but {n} expected.")
+            raise ConnectionError("Connection was closed or failed to receive data")
         data.extend(packet)
     return data
 
@@ -61,21 +57,24 @@ def encode_data(opcode: str, data: dict):
         if opcode == "GIVEPEER":
             peers = data.get("list_peers", [])
             peer_count = len(peers)
-            serialized_peers = ''.join([f"{peer}:" for peer in peers]).encode('utf-8')
-            return struct.pack(">B", OpCode.GIVEPEER.value) + struct.pack(">I", peer_count) + serialized_peers
+            encoded_peers = b""
+            for peer in peers:
+                ip_str, port = peer.split(":")
+                ip_bytes = socket.inet_aton(ip_str)  # 4 bytes
+                encoded_peers += struct.pack(">4sH", ip_bytes, int(port))  # 6 bytes per peer
 
+            return struct.pack(">BI", OpCode.GIVEPEER.value, peer_count) + encoded_peers
 
     except KeyError as e:
         logging.error(f"Missing required data field: {e}")
     except (TypeError, struct.error) as e:
         logging.error(f"Encoding error: {e}")
-        sys.exit()
     except Exception as e:
         logging.error(f"Unexpected error in encode_data: {e}")
 
-    return None  #None if error
+    raise Error("Error in encode_data")  #None if error
 
-def decode_data(binary_data):
+def decode_data(binary_data:bytes):
     try:
         opcode_value = struct.unpack(">B", binary_data[:1])[0]
         opcode = OpCode(opcode_value)
@@ -105,18 +104,23 @@ def decode_data(binary_data):
         if opcode == OpCode.GETPEER:
             return {
                 "opcode": "GETPEER"
-            }
+                }
         
         if opcode == OpCode.GIVEPEER:
             peer_count = struct.unpack(">I", binary_data[1:5])[0]
-            addrs = binary_data[5:].decode("utf-8").strip().split(":")
-            peer_list = [{"ip": addrs[i], "port": int(addrs[i + 1])} for i in range(0, len(addrs)-1, 2)]
+            peers = []
+            offset = 5
+            for _ in range(peer_count):
+                ip_bytes, port = struct.unpack(">4sH", binary_data[offset:offset + 6])
+                ip_str = socket.inet_ntoa(ip_bytes)
+                peers.append({"ip": ip_str, "port": port})
+                offset += 6
             return {
-                "opcode": "GIVEPEER",
-                "peers": peer_list
-            }
+                "opcode": "GIVEPEER", 
+                "peers": peers
+                }
 
-        raise ValueError(f"Unknown opcode: {opcode}")  # Nếu opcode không hợp lệ
+        raise ValueError(f"Unknown opcode: {opcode}")  # for debug
 
     except KeyError as e:
         logging.error(f"Missing required data field: {e}")
