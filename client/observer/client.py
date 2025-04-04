@@ -3,6 +3,7 @@ import json
 import threading
 import os
 
+from observer.peer_factory import PeerFactory
 from connection.tracker_connection import HandleTracker
 from utils.load_config import load_config
 from utils.torrent_reader import TorrentReader
@@ -11,6 +12,11 @@ CONFIG_PATH = "config\\client_config.json"
 
 class ClientObserver:
     def __init__(self):
+
+        self.ip = '127.0.0.1'
+
+        self.peers = []
+        self.Factory = PeerFactory()
 
         config = load_config(CONFIG_PATH)
         self.port = config['client_port']
@@ -34,6 +40,7 @@ class ClientObserver:
     def start(self):
         self._scan_downloaded_pieces()
         self.register()
+        self._getlistpeer()
 
     def register(self):
         tracker_connect = HandleTracker()
@@ -43,7 +50,22 @@ class ClientObserver:
         tracker_connect = HandleTracker()
         tracker_connect.send_unregister_request()
 
+    def _getlistpeer(self):
+        tracker_connect = HandleTracker()
+        peer_list = tracker_connect.request_list_peers(self.tracker_URL)
+        if peer_list == None:
+            logging.info(f"No peers found in network.")
+            return
+        for peer in peer_list:
+            new_peer = self.Factory.new_peer(peer['ip'], peer['port'])
 
+            if new_peer.ip == self.ip and new_peer.port == self.port:
+                continue
+            elif new_peer not in self.peers:
+                self.peers.append(new_peer)
+                logging.info(f"Added new peer: {new_peer.ip}:{new_peer.port}")
+            else:
+                logging.info(f"ALready have peer {new_peer.ip}:{new_peer.port}.")
 
     def _scan_downloaded_pieces(self):
         existing_pieces = os.listdir(self.download_folder_path)

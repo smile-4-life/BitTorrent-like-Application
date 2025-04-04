@@ -1,14 +1,15 @@
 import struct
 import logging
 import json
+import sys
 from enum import Enum 
 
 class OpCode(Enum):
     REGISTER = 0x01
     UNREGISTER = 0x02
-    UPDATE = 0x03
-    SENDDICT = 0x04
-    RESPONSE = 0x05
+    RESPONSE = 0x03
+    GETPEER = 0x04
+    GIVEPEER = 0x05
 
 def send_msg(sock, msg):
     """Send a message with a length prefix."""
@@ -54,12 +55,21 @@ def encode_data(opcode: str, data: dict):
             response_msg = data.get("response", "").encode("utf-8")
             return struct.pack(">BI", OpCode.RESPONSE.value, len(response_msg)) + response_msg
 
-        raise ValueError(f"Unknown opcode: {opcode}")  # Nếu opcode không hợp lệ
+        if opcode == "GETPEER":
+            return struct.pack(">B", OpCode.GETPEER.value)
+
+        if opcode == "GIVEPEER":
+            peers = data.get("list_peers", [])
+            peer_count = len(peers)
+            serialized_peers = ''.join([f"{peer}:" for peer in peers]).encode('utf-8')
+            return struct.pack(">B", OpCode.GIVEPEER.value) + struct.pack(">I", peer_count) + serialized_peers
+
 
     except KeyError as e:
         logging.error(f"Missing required data field: {e}")
     except (TypeError, struct.error) as e:
         logging.error(f"Encoding error: {e}")
+        sys.exit()
     except Exception as e:
         logging.error(f"Unexpected error in encode_data: {e}")
 
@@ -91,6 +101,20 @@ def decode_data(binary_data):
             return {
                 "opcode": "RESPONSE", 
                 "response": response_data}
+        
+        if opcode == OpCode.GETPEER:
+            return {
+                "opcode": "GETPEER"
+            }
+        
+        if opcode == OpCode.GIVEPEER:
+            peer_count = struct.unpack(">I", binary_data[1:5])[0]
+            addrs = binary_data[5:].decode("utf-8").strip().split(":")
+            peer_list = [{"ip": addrs[i], "port": int(addrs[i + 1])} for i in range(0, len(addrs)-1, 2)]
+            return {
+                "opcode": "GIVEPEER",
+                "peers": peer_list
+            }
 
         raise ValueError(f"Unknown opcode: {opcode}")  # Nếu opcode không hợp lệ
 
@@ -99,6 +123,6 @@ def decode_data(binary_data):
     except (TypeError, struct.error) as e:
         logging.error(f"Encoding error: {e}")
     except Exception as e:
-        logging.error(f"Unexpected error in encode_data: {e}")
+        logging.error(f"Unexpected error in decode_data: {e}")
 
     return None  #None if error

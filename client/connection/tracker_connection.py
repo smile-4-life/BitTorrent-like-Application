@@ -40,7 +40,7 @@ class HandleTracker:
             raw_response = recv_msg(sock)
             response = decode_data(raw_response)
 
-            logging.info(f"Response from tracker: {response.get("response")}")
+            logging.info(f"Response from tracker: {response.get("response")}.")
             return 
         except Exception as e:
             logging.error(f"Error in send_register_request: {e}")
@@ -57,8 +57,8 @@ class HandleTracker:
                 "port": port,
             }
 
-            biMsg = encode_data("REGISTER",dictMsg)
-            send_msg(sock,biMsg)
+            rawMsg = encode_data("REGISTER",dictMsg)
+            send_msg(sock,rawMsg)
 
             raw_response = recv_msg(sock)
             response = decode_data(raw_response)
@@ -71,7 +71,29 @@ class HandleTracker:
         finally:
             sock.close()
     
-    def request_list_peers(self,)
+    def request_list_peers(self, tracker_url):
+        try:
+            sock = self.connect_to_tracker(tracker_url)
+            if sock is None:
+                return
+            dictMsg = {"a":"a"}
+            rawMsg = encode_data("GETPEER",dictMsg)
+            send_msg(sock, rawMsg)
+
+            raw_response = recv_msg(sock)
+            dict_response = decode_data(raw_response)
+            if dict_response.get("opcode") == "GIVEPEER":
+                peer_list = dict_response.get("peers")
+                return peer_list
+            else:
+                raise Error(f"No found list_addrs")
+
+            return dict_response
+        except Exception as e:
+            logging.error(f"Error during request list peers: {e}")
+            return 
+        finally:
+            sock.close()
 
     def update_downloaded_pieces(self, piece):
         sock = self.connect_to_tracker()

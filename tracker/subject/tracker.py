@@ -14,7 +14,7 @@ CONFIG_PATH = os.path.join("config", "tracker_config.json")
 class TrackerSubject:
     def __init__(self):
 
-        self.peers = []      
+        self.peers = []      #list of Peer Object
         self.peers_lock = threading.Lock()
 
         self.is_running = True
@@ -52,7 +52,14 @@ class TrackerSubject:
 
             if dictMsg.get("opcode") == "REGISTER":
                 new_peer = Handler.handle_register(client_socket,client_ip,dictMsg)
-                self.peers.append(new_peer)
+                if new_peer not in self.peers:
+                    self.peers.append(new_peer)
+                    logging.info(f"Added new peer: {new_peer.ip}:{new_peer.port}")
+                else:
+                    logging.info(f"Peer {new_peer.ip}:{new_peer.port} is already register.")
+            
+            if dictMsg.get("opcode") == "GETPEER":
+                Handler.handle_get_peers(client_socket,self.peers)
                 
         except Exception as e:
             logging.error(f"Error handling client {client_ip}: {e}")
