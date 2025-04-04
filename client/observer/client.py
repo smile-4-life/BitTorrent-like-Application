@@ -32,18 +32,20 @@ class ClientObserver:
         '''
 
     def start(self):
-        self.scan_downloaded_pieces()
+        self._scan_downloaded_pieces()
         self.register()
 
     def register(self):
         tracker_connect = HandleTracker()
-        tracker_connect.send_register_request(self.port, self.tracker_URL)
+        tracker_connect.send_register_request(self.tracker_URL, self.port,  self.pieces_left)
 
     def unregister(self):
         tracker_connect = HandleTracker()
         tracker_connect.send_unregister_request()
 
-    def scan_downloaded_pieces(self):
+
+
+    def _scan_downloaded_pieces(self):
         existing_pieces = os.listdir(self.download_folder_path)
         for file in existing_pieces:
             if file.endswith('.bin'):

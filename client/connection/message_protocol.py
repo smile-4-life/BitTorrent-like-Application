@@ -7,7 +7,7 @@ class OpCode(Enum):
     REGISTER = 0x01
     UNREGISTER = 0x02
     UPDATE = 0x03
-    SENDDICT = 0x04
+    GETPEER = 0x04
     RESPONSE = 0x05
 
 def send_msg(sock, msg):
@@ -54,6 +54,9 @@ def encode_data(opcode: str, data: dict):
             response_msg = data.get("response", "").encode("utf-8")
             return struct.pack(">BI", OpCode.RESPONSE.value, len(response_msg)) + response_msg
 
+        if opcode == "GETPEER":
+            return struct.pack(">B", OpCode.GETPEER.value)
+
         raise ValueError(f"Unknown opcode: {opcode}")  # Nếu opcode không hợp lệ
 
     except KeyError as e:
@@ -91,6 +94,11 @@ def decode_data(binary_data):
             return {
                 "opcode": "RESPONSE", 
                 "response": response_data}
+        
+        if opcode == OpCode.GETPEER:
+            return {
+                "opcode": "GETPEER"
+            }
 
         raise ValueError(f"Unknown opcode: {opcode}")  # Nếu opcode không hợp lệ
 

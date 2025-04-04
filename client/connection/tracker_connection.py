@@ -23,7 +23,7 @@ class HandleTracker:
         sys.exit(0)
         return
 
-    def send_register_request(self, port, tracker_URL):
+    def send_register_request(self, tracker_URL, port, pieces_left):
         try:
             sock = self.connect_to_tracker(tracker_URL)
             if sock is None:
@@ -31,7 +31,7 @@ class HandleTracker:
 
             dictMsg = {
                 "port": port,
-                "pieces_left": 0
+                "pieces_left": pieces_left
             }
 
             biMsg = encode_data("REGISTER",dictMsg)
@@ -47,7 +47,7 @@ class HandleTracker:
         finally:
             sock.close()
 
-    def send_unregister_request(self, port, tracker_url):
+    def send_unregister_request(self, tracker_url, port):
         try:
             sock = self.connect_to_tracker(tracker_url)
             if sock is None:
@@ -71,6 +71,8 @@ class HandleTracker:
         finally:
             sock.close()
     
+    def request_list_peers(self,)
+
     def update_downloaded_pieces(self, piece):
         sock = self.connect_to_tracker()
         if sock == None:
