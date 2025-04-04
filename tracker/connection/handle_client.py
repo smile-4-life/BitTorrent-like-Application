@@ -1,5 +1,7 @@
 import logging
+
 from connection.message_protocol import *
+from subject.peer_factory import PeerFactory
 
 class HandleClient:
     """Handles interactions between tracker and clients."""
@@ -8,20 +10,21 @@ class HandleClient:
 
     def handle_register(self, client_socket, client_ip, dictMsg):
         client_port = dictMsg.get("port")
-        if client_port is None:
+        pieces_left = dictMsg.get("pieces_left",1)
+        if client_port is None or pieces_left is None:
             logging.warning(f"Invalid REGISTER request from {client_ip}: {dictMsg}")
             return None
+
+        peer_factory = PeerFactory()
+        peer = peer_factory.new_peer(client_ip, client_port, pieces_left)
 
         response = {"response": "REGISTER SUCCESS"}
         raw_response = encode_data("RESPONSE", response)
         send_msg(client_socket, raw_response)
 
-        client_addr =(client_ip,client_port)
-        list_pieces = dictMsg.get("list_pieces")
+        return peer
         
-        return {
-            client_addr:list_pieces
-        }
+        
 '''
     def handle_unregister(self, client_ip, client_port, client_socket):
         """Handles peer unregistration."""

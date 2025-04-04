@@ -41,47 +41,64 @@ def recvall(sock, n):
     return data
 
 def encode_data(opcode: str, data: dict):
-    """Encode data into binary format with an opcode."""
-    if opcode == "REGISTER":
-        list_pieces = data.get("list_pieces", [])
-        pieces_json = json.dumps(list_pieces).encode("utf-8")
-        return struct.pack(">BHI", OpCode.REGISTER.value, data.get("port"), len(pieces_json)) + pieces_json
-    
-    if opcode == "UNREGISTER":
-        return struct.pack(">BH", OpCode.UNREGISTER.value, data.get("port"))
+    try:
+        if opcode == "REGISTER":
+            pieces_left = data.get("pieces_left", 0)
+            port = data.get("port")
+            return struct.pack(">BHI", OpCode.REGISTER.value, port, pieces_left)
+        
+        if opcode == "UNREGISTER":
+            return struct.pack(">BH", OpCode.UNREGISTER.value, data.get("port"))
 
-    if opcode == "RESPONSE":
-        response_msg = data.get("response", "").encode("utf-8")
-        return struct.pack(">BI", OpCode.RESPONSE.value, len(response_msg)) + response_msg
+        if opcode == "RESPONSE":
+            response_msg = data.get("response", "").encode("utf-8")
+            return struct.pack(">BI", OpCode.RESPONSE.value, len(response_msg)) + response_msg
 
-    return None
+        raise ValueError(f"Unknown opcode: {opcode}")  # Nếu opcode không hợp lệ
+
+    except KeyError as e:
+        logging.error(f"Missing required data field: {e}")
+    except (TypeError, struct.error) as e:
+        logging.error(f"Encoding error: {e}")
+    except Exception as e:
+        logging.error(f"Unexpected error in encode_data: {e}")
+
+    return None  #None if error
 
 def decode_data(binary_data):
-    """Decode binary data into structured format."""
-    opcode_value = struct.unpack(">B", binary_data[:1])[0]
-    opcode = OpCode(opcode_value)
+    try:
+        opcode_value = struct.unpack(">B", binary_data[:1])[0]
+        opcode = OpCode(opcode_value)
 
-    if opcode == OpCode.REGISTER:
-        port, list_pieces_length = struct.unpack(">HI", binary_data[1:7])
-        list_pieces_json = binary_data[7:7 + list_pieces_length].decode("utf-8")
-        list_pieces = json.loads(list_pieces_json)  # Convert JSON back to list
-        return {
-            "opcode": "REGISTER", 
-            "port": port, 
-            "list_pieces": list_pieces
+        if opcode == OpCode.REGISTER:
+
+            port, pieces_left = struct.unpack(">HI", binary_data[1:7])
+            return {
+                "opcode": "REGISTER", 
+                "port": port, 
+                "pieces_left": pieces_left
             }
-    
-    if opcode == OpCode.UNREGISTER:
-        return {
-            "opcode": "UNREGISTER", 
-            "port": struct.unpack(">H", binary_data[1:3])[0]
-            }
+        
+        if opcode == OpCode.UNREGISTER:
+            return {
+                "opcode": "UNREGISTER", 
+                "port": struct.unpack(">H", binary_data[1:3])[0]
+                }
 
-    if opcode == OpCode.RESPONSE:
-        response_length = struct.unpack(">I", binary_data[1:5])[0]
-        response_data = binary_data[5:5 + response_length].decode("utf-8")
-        return {
-            "opcode": "RESPONSE", 
-            "response": response_data}
+        if opcode == OpCode.RESPONSE:
+            response_length = struct.unpack(">I", binary_data[1:5])[0]
+            response_data = binary_data[5:5 + response_length].decode("utf-8")
+            return {
+                "opcode": "RESPONSE", 
+                "response": response_data}
 
-    return None
+        raise ValueError(f"Unknown opcode: {opcode}")  # Nếu opcode không hợp lệ
+
+    except KeyError as e:
+        logging.error(f"Missing required data field: {e}")
+    except (TypeError, struct.error) as e:
+        logging.error(f"Encoding error: {e}")
+    except Exception as e:
+        logging.error(f"Unexpected error in encode_data: {e}")
+
+    return None  #None if error

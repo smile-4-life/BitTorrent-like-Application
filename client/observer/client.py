@@ -5,7 +5,7 @@ import os
 
 from connection.tracker_connection import HandleTracker
 from utils.load_config import load_config
-from utils.metainfo_utils import read_torrent_file
+from utils.torrent_reader import TorrentReader
 
 CONFIG_PATH = "config\\client_config.json"
 
@@ -16,40 +16,40 @@ class ClientObserver:
         self.port = config['client_port']
         self.metainfo_file_path = config['metainfo_file_path']
         self.download_folder_path = config['download_folder_path']
-    
+
+        reader = TorrentReader()
         (
             self.tracker_URL, 
             self.file_name, 
             self.piece_length, 
             self.list_pieces, 
             self.file_length, 
-            self.pieces_count ) = read_torrent_file(self.metainfo_file_path)
+            self.pieces_left ) = reader.read_torrent_file(self.metainfo_file_path)
         
-        ''''''
+        '''
         self.piece_bitfield = {piece_ : 0 for piece_ in self.list_pieces}   #defaut bit-filed 0 
         self.bit_field_lock = threading.Lock()
-        ''''''
+        '''
 
     def start(self):
-        self.update_downloaded_pieces()
+        self.scan_downloaded_pieces()
         self.register()
 
     def register(self):
-        list_pieces = [piece for piece in self.piece_bitfield.keys() if self.piece_bitfield[piece]]
-
         tracker_connect = HandleTracker()
-        tracker_connect.send_register_request(self.port, self.tracker_URL, list_pieces)
+        tracker_connect.send_register_request(self.port, self.tracker_URL)
 
     def unregister(self):
         tracker_connect = HandleTracker()
         tracker_connect.send_unregister_request()
 
-    def update_downloaded_pieces(self):
+    def scan_downloaded_pieces(self):
         existing_pieces = os.listdir(self.download_folder_path)
         for file in existing_pieces:
             if file.endswith('.bin'):
                 piece_hash = file[:-4]
                 self.piece_bitfield[piece_hash] = 1
+                self.pieces_left -= 1
 
     
                 

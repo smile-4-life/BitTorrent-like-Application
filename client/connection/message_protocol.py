@@ -43,9 +43,9 @@ def recvall(sock, n):
 def encode_data(opcode: str, data: dict):
     try:
         if opcode == "REGISTER":
-            list_pieces = data.get("list_pieces", [])
-            pieces_json = json.dumps(list_pieces).encode("utf-8")
-            return struct.pack(">BHI", OpCode.REGISTER.value, data.get("port"), len(pieces_json)) + pieces_json
+            pieces_left = data.get("pieces_left", 0)
+            port = data.get("port")
+            return struct.pack(">BHI", OpCode.REGISTER.value, port, pieces_left)
         
         if opcode == "UNREGISTER":
             return struct.pack(">BH", OpCode.UNREGISTER.value, data.get("port"))
@@ -72,15 +72,12 @@ def decode_data(binary_data):
 
         if opcode == OpCode.REGISTER:
 
-            port, list_pieces_length = struct.unpack(">HI", binary_data[1:7])
-
-            list_pieces_json = binary_data[7:7 + list_pieces_length].decode("utf-8")
-            list_pieces = json.loads(list_pieces_json)  # Convert JSON back to list
+            port, pieces_left = struct.unpack(">HI", binary_data[1:7])
             return {
                 "opcode": "REGISTER", 
                 "port": port, 
-                "list_pieces": list_pieces
-                }
+                "pieces_left": pieces_left
+            }
         
         if opcode == OpCode.UNREGISTER:
             return {
