@@ -49,8 +49,18 @@ def encode_unregister(data: dict):
     return struct.pack(">BH", OpCode.UNREGISTER.value, data.get("port"))
 
 def encode_response(data: dict):
-    msg = data.get("response", "").encode("utf-8")
-    return struct.pack(">BI", OpCode.RESPONSE.value, len(msg)) + msg
+    response_bytes = data.get("response", "").encode("utf-8")
+    ip_bytes = data.get("client_ip", "").encode("utf-8")
+
+    response_len = len(response_bytes)
+    ip_len = len(ip_bytes)
+
+    return (
+        struct.pack(">BI", OpCode.RESPONSE.value, response_len) +
+        response_bytes +
+        struct.pack("B", ip_len) +
+        ip_bytes
+    )
 
 def encode_getpeer(_: dict):
     return struct.pack(">B", OpCode.GETPEER.value)
@@ -91,9 +101,18 @@ def decode_unregister(payload: bytes):
     return {"opcode": "UNREGISTER", "port": port}
 
 def decode_response(payload: bytes):
-    length = struct.unpack(">I", payload[:4])[0]
-    msg = payload[4:4+length].decode("utf-8")
-    return {"opcode": "RESPONSE", "response": msg}
+    response_len = struct.unpack(">I", payload[:4])[0]
+    response = payload[4:4+response_len].decode("utf-8")
+
+    ip_len_index = 4 + response_len
+    ip_len = struct.unpack("B", payload[ip_len_index:ip_len_index+1])[0]
+
+    ip = payload[ip_len_index+1:ip_len_index+1+ip_len].decode("utf-8")
+
+    return {
+        "opcode": "RESPONSE", 
+        "response": response, 
+        "client_ip": ip}
 
 def decode_getpeer(_: bytes):
     return {"opcode": "GETPEER"}
