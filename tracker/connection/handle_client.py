@@ -1,5 +1,5 @@
 import logging
-from connection.message_protocol import *
+from protocol.tracker_protocol import *
 from subject.peer_factory import PeerFactory
 
 class HandleClient:

@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from utils.load_config import load_config
 from connection.handle_client import HandleClient
-from connection.message_protocol import recv_msg, decode_data, encode_data, send_msg
+from protocol.tracker_protocol import recv_msg, decode_data, encode_data, send_msg
 
 CONFIG_PATH = os.path.join("config", "tracker_config.json")
 
