@@ -1,4 +1,4 @@
 {
-    "tracker_IP": "127.0.0.1",
+    "tracker_IP": "0.0.0.0",
     "tracker_port": 8080
 }

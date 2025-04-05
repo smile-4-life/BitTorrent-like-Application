@@ -1,6 +1,6 @@
 import logging
 from protocol.tracker_protocol import *
-from subject.peer_factory import PeerFactory
+from factory.peer_factory import PeerFactory
 
 class HandleClient:
     """Handles interactions between tracker and clients."""
@@ -17,8 +17,11 @@ class HandleClient:
         peer_factory = PeerFactory()
         peer = peer_factory.new_peer(client_ip, client_port, pieces_left)
 
-        dict_response = {"response": "REGISTER SUCCESSFUL"}
-        raw_response = encode_data("RESPONSE", dict_response)
+        dict_response = {
+            "response": "REGISTER SUCCESSFUL",
+            "client_ip": client_ip
+            }
+        raw_response = encode_response(dict_response)
         send_msg(client_socket, raw_response)
 
         return peer
@@ -27,32 +30,21 @@ class HandleClient:
         list_peer_addrs = list(f"{peer.ip}:{peer.port}" for peer in peers)
 
         dict_response = {"list_peers": list_peer_addrs}
-        raw_response = encode_data("GIVEPEER", dict_response)
+        raw_response = encode_givepeer(dict_response)
         send_msg(client_socket, raw_response)
         return
         
-'''
-    def handle_unregister(self, client_ip, client_port, client_socket):
-        """Handles peer unregistration."""
-        client_addr =(client_ip,client_port)
-        self.tracker_object.unregister_peer(client_addr)
-        client_socket.send(b"UNREGISTERED")
-        client_socket.close()
-'''
+    def handle_unregister(self, client_socket, client_ip, dictMsg):
+        client_port = dictMsg.get("port")
+        if client_port is None:
+            logging.warning(f"Invalid UNREGISTER request from {client_ip}: {dictMsg}")
+            return None
 
-'''    
-    def handle_update_piece(self, client_ip, client_port, hash_value):
-        client_addr = f"{client_ip}:{client_port}"
-        self.tracker_object.update_piece(client_addr, hash_value)
-'''
+        peer_factory = PeerFactory()
+        peer = peer_factory.new_peer(client_ip, client_port, 1)
 
-'''    
-    def handle_get_list_peer(self, client_socket):
-        peers = self.tracker_object.get_peers()
-        if peers:
-            send_msg(client_socket, str(peers))
-            logging.info("📤 Sent list of peers to client.")
-        else:
-            send_msg(client_socket, "BLANK")
-            logging.warning("⚠️ Sent empty peer list.")
-'''
+        dict_response = {"response": "UNREGISTER SUCCESSFUL"}
+        raw_response = encode_response(dict_response)
+        send_msg(client_socket, raw_response)
+
+        return peer

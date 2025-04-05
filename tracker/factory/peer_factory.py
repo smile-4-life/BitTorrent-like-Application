@@ -12,7 +12,7 @@ class Peer:
 
     def __repr__(self):
         return f"Peer(ip={self.ip}, port={self.port})"
-        
+
 class PeerFactory:
     @staticmethod
     def new_peer(ip, port, pieces_left):
