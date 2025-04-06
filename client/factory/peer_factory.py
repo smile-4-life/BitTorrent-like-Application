@@ -2,6 +2,7 @@ class Peer:
     def __init__(self, ip, port):
         self.ip = ip
         self.port = port
+        self.download_speed = 0
         
     def __eq__(self, other):
         if not isinstance(other, Peer):

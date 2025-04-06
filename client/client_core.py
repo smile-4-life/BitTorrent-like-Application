@@ -3,15 +3,21 @@ import json
 import threading
 import os
 import socket
+import hashlib
 
 from concurrent.futures import ThreadPoolExecutor
-from threading import Lock
 
 from cores.observer_base import Observer
 from cores.subject_base import Subject
 
 from factory.peer_factory import PeerFactory
+
+from manager.peer_manager import PeerManager
+from manager.piece_manager import PieceManager
+
 from connection.tracker_connection import HandleTracker
+from connection.peer_connection import HandlePeer
+
 from utils.load_config import load_config
 from utils.torrent_reader import TorrentReader
 
@@ -19,61 +25,38 @@ CONFIG_PATH = "config\\client_config.json"
 
 class Client(Observer, Subject):
     def __init__(self):
-        
-        self.peers_lock = Lock()
-        self.piece_lock = Lock()
-        self.bitfiled_lock = Lock()
-
-
-        self.ip = '0.0.0.0' #should connect with tracker to get public IP
-
-        self.peers = []
+        self.Peer_manager = PeerManager()
         self.Factory = PeerFactory()
 
         config = load_config(CONFIG_PATH)
         self.port = config['client_port']
-        self.metainfo_file_path = config['metainfo_file_path']
-        self.download_folder_path = config['download_folder_path']
 
-        reader = TorrentReader()
-        (
-            self.tracker_URL, 
-            self.file_name, 
-            self.piece_length, 
-            self.list_pieces,  #lock
-            self.file_length, 
-            self.pieces_left   #lock
-            ) = reader.read_torrent_file(self.metainfo_file_path)
-
-        self.piece_bitfield = {piece:0 for piece in self.list_pieces}
+        self.Piece_manager = PieceManager( config )
         self._scan_downloaded_pieces()
 
-    
-    # ===== Utils func =====
+        self.tracker_URL = self.Piece_manager.tracker_URL
+        self.ip = '0.0.0.0'  # should connect with tracker to get public IP
+
     def _scan_downloaded_pieces(self):
-        existing_pieces = os.listdir(self.download_folder_path)
-        for file in existing_pieces:
-            if file.endswith('.bin'):
-                piece_hash = file[:-4]
-                self.piece_bitfield[piece_hash] = 1
-                self.pieces_left -= 1
+        self.Piece_manager.scan_downloaded_pieces()
 
-
-    # ===== Observer Pattern =====
+    #=====Observer Parttern=====
     def attach(self, observer):
-        self.peers.append(observer)
+        self.Peer_manager.add_peer(observer)
 
     def detach(self, observer):
-        self.peers.remove(observer)
+        self.Peer_manager.remove_peer(observer)
 
     def notify(self, data):
-        pass
+        for peer in self.Peer_manager.get_all_peers():
+            peer.update(peer.ip, peer.port, data)
 
-    def update(self,data):
-        pass
+    def update(self, ip, port, data):
+        Peer_handler = HandlePeer()
+        sock = Peer_handler.connect_to_peer(ip, port)
+        Peer_handler.send_have(sock, data)
 
-    
-    # ===== Start =====
+    #=====Core=====
     def start(self):
         try:
             self._register()
@@ -84,11 +67,9 @@ class Client(Observer, Subject):
         except Exception as e:
             logging.error(f"Start-Client catched error: {e}")
 
-    # ===== Method - Tracker =====
-
     def _register(self):
         tracker_connect = HandleTracker()
-        self.ip = tracker_connect.send_register_request(self.tracker_URL, self.port, self.pieces_left)
+        self.ip = tracker_connect.send_register_request(self.tracker_URL, self.port, self.Piece_manager.pieces_left)
 
     def _unregister(self):
         tracker_connect = HandleTracker()
@@ -97,21 +78,20 @@ class Client(Observer, Subject):
     def _getlistpeer(self):
         tracker_connect = HandleTracker()
         peer_list = tracker_connect.request_list_peers(self.tracker_URL)
-        if peer_list == None:
-            logging.info(f"No peers found in network.")
+        if peer_list is None:
+            logging.info("No peers found in network.")
             return
         for peer in peer_list:
             new_peer = self.Factory.new_peer(peer['ip'], peer['port'])
 
             if new_peer.ip == self.ip and new_peer.port == self.port:
                 continue
-            elif new_peer not in self.peers:
+            elif not self.Peer_manager.has_peer(new_peer):
                 self.attach(new_peer)
                 logging.info(f"Added new peer: {new_peer.ip}:{new_peer.port}")
             else:
-                logging.info(f"ALready have peer {new_peer.ip}:{new_peer.port}.")
+                logging.info(f"Already have peer {new_peer.ip}:{new_peer.port}.")
 
-    # ===== with client =====
     def start2(self):
         try:
             self.start_listening()
@@ -142,9 +122,10 @@ class Client(Observer, Subject):
         peer_handler = HandlePeer()
         peer_handler.listen_for_requests(sock)
 
+# method tạm thời
     def request_missing_pieces(self):
         with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = [executor.submit(self._request_from_peer, peer) for peer in self._get_peers_threadsafe()]
+            futures = [executor.submit(self._request_from_peer, peer) for peer in self.Peer_manager.get_all_peers()]
             for future in futures:
                 future.result()
 
@@ -152,29 +133,12 @@ class Client(Observer, Subject):
         peer_handler = HandlePeer()
         try:
             sock = peer_handler.connect_to_peer(peer.ip, peer.port)
-            for piece_hash in self.list_pieces:
-                if not self._has_piece(piece_hash):
-                    peer_handler.send_request(sock, piece_hash)
-                    piece_data = peer_handler.receive_piece(sock)
-                    self._save_piece(piece_data['piece_index'], piece_data['data'])
+            for piece_index in self.Piece_manager.get_missing_piece_indexes():
+                peer_handler.send_request(sock, piece_index)
+                piece_data, speed = peer_handler.receive_piece(sock)
+                self.Peer_manager.update_download_speed(peer, speed)
+                if self.Piece_manager.verify_and_save(piece_data['piece_index'], piece_data['data']):
                     self.notify({'event': 'piece_downloaded', 'index': piece_data['piece_index']})
             sock.close()
         except Exception as e:
             logging.error(f"Error requesting pieces from peer {peer.ip}:{peer.port} - {e}")
-
-    def _has_piece(self, piece_hash):
-        with self.bitfield_lock:
-            return self.piece_bitfield.get(piece_hash) == 1
-
-    def _save_piece(self, piece_index, data):
-        piece_path = os.path.join(self.download_folder_path, "list_pieces", f"{piece_index}.bin")
-        with self.piece_lock:
-            with open(piece_path, 'wb') as f:
-                f.write(data)
-        with self.bitfield_lock:
-            self.piece_bitfield[piece_index] = 1
-            self.pieces_left -= 1
-
-    def _get_peers_threadsafe(self):
-        with self.peers_lock:
-            return list(self.peers)

@@ -2,5 +2,5 @@
     "client_ip": "0.0.0.0",
     "client_port": 9999,
     "metainfo_file_path": "torrent_manager\\metainfo_container\\metainfo.torrent",
-    "download_folder_path": "downloads"
+    "download_folder_path": "downloads\\list_pieces"
 }
