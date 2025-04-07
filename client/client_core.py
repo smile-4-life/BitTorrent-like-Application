@@ -4,6 +4,9 @@ import threading
 import os
 import socket
 import hashlib
+import time
+
+from protocol.peer_protocol import *
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -20,22 +23,26 @@ from connection.peer_connection import HandlePeer
 
 from utils.load_config import load_config
 from utils.torrent_reader import TorrentReader
+from utils.generate_id import generate_peer_id
 
 CONFIG_PATH = "config\\client_config.json"
 
 class Client(Observer, Subject):
     def __init__(self):
+        self.Peer_connection = HandlePeer()
         self.Peer_manager = PeerManager()
-        self.Factory = PeerFactory()
+        self.Peer_factory = PeerFactory()
 
         config = load_config(CONFIG_PATH)
-        self.port = config['client_port']
+        #self.port = config['client_port']
+        self.port = int(input("Enter port: "))
 
         self.Piece_manager = PieceManager( config )
         self._scan_downloaded_pieces()
 
         self.tracker_URL = self.Piece_manager.tracker_URL
         self.ip = '0.0.0.0'  # should connect with tracker to get public IP
+        self.id = generate_peer_id()
 
     def _scan_downloaded_pieces(self):
         self.Piece_manager.scan_downloaded_pieces()
@@ -52,93 +59,139 @@ class Client(Observer, Subject):
             peer.update(peer.ip, peer.port, data)
 
     def update(self, ip, port, data):
-        Peer_handler = HandlePeer()
-        sock = Peer_handler.connect_to_peer(ip, port)
-        Peer_handler.send_have(sock, data)
+        sock = self.Peer_connection.connect_to_peer(ip, port)
+        self.Peer_connection.send_have(sock, data)
 
-    #=====Core=====
-    def start(self):
-        try:
-            self._register()
-            self._getlistpeer()
-            self.start_listening()
-            self.request_missing_pieces()
-            self._unregister()
-        except Exception as e:
-            logging.error(f"Start-Client catched error: {e}")
-
-    def _register(self):
+    #=====TRACKER=====
+    def register(self):
         tracker_connect = HandleTracker()
         self.ip = tracker_connect.send_register_request(self.tracker_URL, self.port, self.Piece_manager.pieces_left)
 
-    def _unregister(self):
+    def unregister(self):
         tracker_connect = HandleTracker()
         tracker_connect.send_unregister_request(self.tracker_URL, self.port)
 
-    def _getlistpeer(self):
+    def getlistpeer(self):
         tracker_connect = HandleTracker()
         peer_list = tracker_connect.request_list_peers(self.tracker_URL)
         if peer_list is None:
             logging.info("No peers found in network.")
             return
-        for peer in peer_list:
-            new_peer = self.Factory.new_peer(peer['ip'], peer['port'])
+        for addr_dict in peer_list:
+            ip = addr_dict.get("ip")
+            port = addr_dict.get("port")
+            addr = (ip,port)
+            if ip != self.ip or port != self.port:
+                self.Peer_manager.add_raw_addr(addr)
 
-            if new_peer.ip == self.ip and new_peer.port == self.port:
-                continue
-            elif not self.Peer_manager.has_peer(new_peer):
-                self.attach(new_peer)
-                logging.info(f"Added new peer: {new_peer.ip}:{new_peer.port}")
-            else:
-                logging.info(f"Already have peer {new_peer.ip}:{new_peer.port}.")
+    #=====  CLIENT  =====
 
-    def start2(self):
-        try:
-            self.start_listening()
-            self.request_missing_pieces()
-        except Exception as e:
-            logging.error(f"Start2-Client catched error: {e}")
 
     def start_listening(self):
-        listener_thread = threading.Thread(target=self._listen_for_peer_requests)
+        listener_thread = threading.Thread(target=self._listen)
         listener_thread.daemon = True
         listener_thread.start()
 
-    def _listen_for_peer_requests(self):
+    def _listen(self):
         try:
             server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            server_sock.bind((self.ip, self.port))
+            server_sock.bind(('0.0.0.0', self.port))
+            #server_sock.bind((self.ip, self.port))
             server_sock.listen(10)
             logging.info(f"Peer listener started on {self.ip}:{self.port}")
 
             with ThreadPoolExecutor(max_workers=10) as executor:
                 while True:
                     client_sock, addr = server_sock.accept()
-                    executor.submit(self._handle_peer_connection, client_sock)
+                    logging.info(f"Connection from {addr}")
+                    executor.submit(self._handle_connection, client_sock, addr[0])
         except Exception as e:
             logging.error(f"Unexpected error: {e}")
 
-    def _handle_peer_connection(self, sock):
-        peer_handler = HandlePeer()
-        peer_handler.listen_for_requests(sock)
+    def _handle_connection(self, sock, peer_ip):
+        while True:
+            msg = self.Peer_connection.receive_message(sock)
+            if not msg:
+                return
+    
+            opcode = msg.get("opcode")
 
-# method tạm thời
-    def request_missing_pieces(self):
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = [executor.submit(self._request_from_peer, peer) for peer in self.Peer_manager.get_all_peers()]
-            for future in futures:
-                future.result()
+            if opcode == "HANDSHAKE":
+                self._handle_handshake(sock, peer_ip, msg)
+            break
 
-    def _request_from_peer(self, peer):
-        peer_handler = HandlePeer()
+    def _handle_handshake(self, sock, peer_ip, msg):
+        peer_id = msg.get("peer_id")
+        peer_port = msg.get("peer_port")
+        new_peer = self._process_peer_handshake(peer_id, peer_ip, peer_port)
+        
+        reply_msg = self._build_handshake_msg()
+        send_msg(sock, reply_msg)
+        
+        self._receive_and_update_bitfield(sock, new_peer)
+        self._send_bitfield(sock)
+
+    # ===== HANDSHAKE =====
+
+    def start_handshake(self):
+            with ThreadPoolExecutor(max_workers = 5) as executor:
+                futures = [executor.submit(self._handshake, addr) for addr in self.Peer_manager.raw_addrs]
+                for future in futures:
+                    result = future.result()
+            
+    def _handshake(self, addr):
+            sock = self.Peer_connection.connect_to_peer(addr)
+            handshake_msg = self._build_handshake_msg()
+            send_msg(sock, handshake_msg)
+            msg = self.Peer_connection.receive_message(sock)
+            peer_id = msg.get("peer_id")
+            peer_port = msg.get("peer_port")
+            new_peer = self._process_peer_handshake(peer_id, addr[0], peer_port)
+            print("here")
+            
+            self._send_bitfield(sock)
+            self._receive_and_update_bitfield(sock, new_peer)
+
+    # ===== UTILS METHODS FOR HANDSHAKE
+
+    def _process_peer_handshake(self, peer_id, peer_ip, peer_port):
+        addr = (peer_ip, peer_port)
+        self.Peer_manager.remove_raw_addr(addr)
+        new_peer = self.Peer_factory.new_peer(peer_id, addr)
+        self.Peer_manager.add_active_peer(new_peer)
+        return new_peer
+
+    def _build_handshake_msg(self):
+        return encode_handshake(
+                {
+                "peer_id": self.id,
+                "peer_port": self.port
+                }
+            )
+
+    def _send_bitfield(self, sock):
+        msg = {
+            "str_bitfield": self.Piece_manager.get_str_bitfield()
+        }
+        bi_msg = encode_bitfield(msg)
+        send_msg(sock, bi_msg)
+    
+    def _receive_and_update_bitfield(self, sock, peer):
+        msg = self.Peer_connection.receive_message(sock)
+        list_bitfield = msg.get("str_bitfield")
+        self.Peer_manager.update_index_bitfield(peer, list_bitfield)
+
+
+
+# start
+
+    def start(self):
         try:
-            sock = peer_handler.connect_to_peer(peer.ip, peer.port)
-            for piece_index in self.Piece_manager.get_missing_piece_indexes():
-                peer_handler.send_request(sock, piece_index)
-                piece_data, speed = peer_handler.receive_piece(sock)
-                self.Peer_manager.update_download_speed(peer, speed)
-                if self.Piece_manager.verify_and_save(piece_data['piece_index'], piece_data['data']):
-                    self.notify({'event': 'piece_downloaded', 'index': piece_data['piece_index']})
-            sock.close()
+            self.register()
+            self.getlistpeer()
+            self.start_listening()
+            self.start_handshake()
+            time.sleep(10)
+            self.unregister()
         except Exception as e:
-            logging.error(f"Error requesting pieces from peer {peer.ip}:{peer.port} - {e}")
+            logging.error(f"Start-Client catched error: {e}")

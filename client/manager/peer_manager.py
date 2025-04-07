@@ -1,44 +1,41 @@
-class PeerState:
-    def __init__(self):
-        self.download_speed = 0
-        self.am_choking = True
-        self.peer_choking = True
+import threading
 
 class PeerManager:
     def __init__(self):
-        self.peers = {}  # {Peer: PeerState}
+        self.raw_addrs_lock = threading.Lock()
+        self.active_addrs_lock = threading.Lock()
+        self.active_peers_lock = threading.Lock()
+        self.index_bitfield_lock = threading.Lock()
 
-    def add_peer(self, peer):
-        if peer not in self.peers:
-            self.peers[peer] = PeerState()
+        self.raw_addrs = []     # [list of tuple (ip,port)]
+        self.active_addrs = []
+        self.active_peers = []  # [list of object]
 
-    def remove_peer(self, peer):
-        if peer in self.peers:
-            del self.peers[peer]
 
-    def get_all_peers(self):
-        return list(self.peers.keys())
 
-    def has_peer(self, peer):
-        return peer in self.peers
+    # raw
+    def add_raw_addr(self, addr):
+        if addr not in self.raw_addrs and addr not in self.active_addrs:
+            with self.raw_addrs_lock:
+                self.raw_addrs.append(addr)
+    
+    def remove_raw_addr(self, addr):
+        if addr in self.raw_addrs:
+            with self.raw_addrs_lock:
+                self.raw_addrs.remove(addr)
+            with self.active_addrs_lock:
+                self.active_addrs.append(addr)
+            
 
-    def get_peer(self, ip, port):
-        for peer in self.peers:
-            if peer.ip == ip and peer.port == port:
-                return peer
-        return None
-
-    def get_peer_state(self, peer):
-        return self.peers.get(peer)
-
-    def get_peers_by_download_speed(self):
-        return sorted(self.peers.items(), key=lambda item: item[1].download_speed, reverse=True)
-
-    def get_am_choking_peers(self):
-        return [peer for peer, state in self.peers.items() if state.am_choking]
-
-    def update_download_speed(self, peer, new_sample, alpha=0.2):
-        if peer in self.peers:
-            current_speed = self.peers[peer].download_speed
-            updated_speed = (1 - alpha) * current_speed + alpha * new_sample
-            self.peers[peer].download_speed = updated_speed
+    # active
+    def add_active_peer(self, peer):
+        with self.active_peers_lock:
+            if peer not in self.active_peers:
+                self.active_peers.append(peer)
+        
+    # bit field
+    def update_index_bitfield(self, peer, list_bitfield):
+        with self.index_bitfield_lock:
+            peer.index_bitfield.update({
+                i: 1 for i, bit in enumerate(list_bitfield) if bit == 1
+            })

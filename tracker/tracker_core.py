@@ -25,6 +25,10 @@ class Tracker:
         exit()
 
     def start(self):
+        threading.Thread(target=self.run_server, daemon=True).start()
+        input()
+
+    def run_server(self):
         config = load_config(CONFIG_PATH)
 
         tracker_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -32,7 +36,6 @@ class Tracker:
         tracker_socket.listen(100)
         logging.info(f"🚀 Tracker running on {config['tracker_IP']}:{config['tracker_port']}")
 
-        threading.Thread(target=self.running).start()
 
         with ThreadPoolExecutor(max_workers=100) as executor:
             while self.is_running:

@@ -40,41 +40,7 @@ def recvall(sock, n: int):
         data.extend(packet)
     return data
 
-# ======================= ENCODERS =======================
-
-def encode_register(data: dict):
-    return struct.pack(">BHI", OpCode.REGISTER.value, data.get("port"), data.get("pieces_left", 0))
-
-def encode_unregister(data: dict):
-    return struct.pack(">BH", OpCode.UNREGISTER.value, data.get("port"))
-
-def encode_response(data: dict):
-    response_bytes = data.get("response", "").encode("utf-8")
-    ip_bytes = data.get("client_ip", "").encode("utf-8")
-
-    response_len = len(response_bytes)
-    ip_len = len(ip_bytes)
-
-    return (
-        struct.pack(">BI", OpCode.RESPONSE.value, response_len) +
-        response_bytes +
-        struct.pack("B", ip_len) +
-        ip_bytes
-    )
-
-def encode_getpeer(_: dict):
-    return struct.pack(">B", OpCode.GETPEER.value)
-
-def encode_givepeer(data: dict):
-    peers = data.get("list_peers", [])
-    peer_count = len(peers)
-    encoded_peers = b""
-    for peer in peers:
-        ip_str, port = peer.split(":")
-        ip_bytes = socket.inet_aton(ip_str)
-        encoded_peers += struct.pack(">4sH", ip_bytes, int(port))
-    return struct.pack(">BI", OpCode.GIVEPEER.value, peer_count) + encoded_peers
-
+# ===== CORE =====
 def encode_data(opcode: str, data: dict):
     try:
         return {
@@ -89,44 +55,6 @@ def encode_data(opcode: str, data: dict):
     except Exception as e:
         logging.error(f"Unexpected error in encode_data: {e}")
     return None
-
-# ======================= DECODERS =======================
-
-def decode_register(payload: bytes):
-    port, pieces_left = struct.unpack(">HI", payload)
-    return {"opcode": "REGISTER", "port": port, "pieces_left": pieces_left}
-
-def decode_unregister(payload: bytes):
-    port = struct.unpack(">H", payload)[0]
-    return {"opcode": "UNREGISTER", "port": port}
-
-def decode_response(payload: bytes):
-    response_len = struct.unpack(">I", payload[:4])[0]
-    response = payload[4:4+response_len].decode("utf-8")
-
-    ip_len_index = 4 + response_len
-    ip_len = struct.unpack("B", payload[ip_len_index:ip_len_index+1])[0]
-
-    ip = payload[ip_len_index+1:ip_len_index+1+ip_len].decode("utf-8")
-
-    return {
-        "opcode": "RESPONSE", 
-        "response": response, 
-        "client_ip": ip}
-
-def decode_getpeer(_: bytes):
-    return {"opcode": "GETPEER"}
-
-def decode_givepeer(payload: bytes):
-    peer_count = struct.unpack(">I", payload[:4])[0]
-    peers = []
-    offset = 4
-    for _ in range(peer_count):
-        ip_bytes, port = struct.unpack(">4sH", payload[offset:offset+6])
-        ip_str = socket.inet_ntoa(ip_bytes)
-        peers.append({"ip": ip_str, "port": port})
-        offset += 6
-    return {"opcode": "GIVEPEER", "peers": peers}
 
 def decode_data(binary_data: bytes):
     try:
@@ -143,3 +71,82 @@ def decode_data(binary_data: bytes):
     except Exception as e:
         logging.error(f"Decode error: {e}")
         return None
+
+# ===== Register =====
+def encode_register(data: dict):
+    return struct.pack(">BHI", OpCode.REGISTER.value, data.get("port"), data.get("pieces_left"))
+
+def decode_register(payload: bytes):
+    port, pieces_left = struct.unpack(">HI", payload)
+    return {"opcode": "REGISTER", "port": port, "pieces_left": pieces_left}
+
+# ===== Unregister =====
+def encode_unregister(data: dict):
+    return struct.pack(">BH", OpCode.UNREGISTER.value, data.get("port"))
+
+def decode_unregister(payload: bytes):
+    port = struct.unpack(">H", payload)[0]
+    return {"opcode": "UNREGISTER", "port": port}
+
+# ===== Response =====
+def encode_response(data: dict):
+    response_bytes = data.get("response", "").encode("utf-8")
+    ip_bytes = data.get("client_ip", "").encode("utf-8")
+
+    response_len = len(response_bytes)
+    ip_len = len(ip_bytes)
+
+    return (
+        struct.pack(">BI", OpCode.RESPONSE.value, response_len) +
+        response_bytes +
+        struct.pack("B", ip_len) +
+        ip_bytes
+    )
+
+def decode_response(payload: bytes):
+    response_len = struct.unpack(">I", payload[:4])[0]
+    response = payload[4:4+response_len].decode("utf-8")
+
+    ip_len_index = 4 + response_len
+    ip_len = struct.unpack("B", payload[ip_len_index:ip_len_index+1])[0]
+
+    ip = payload[ip_len_index+1:ip_len_index+1+ip_len].decode("utf-8")
+
+    return {
+        "opcode": "RESPONSE", 
+        "response": response, 
+        "client_ip": ip}
+
+# ===== GetPeer =====
+def encode_getpeer(_: dict):
+    return struct.pack(">B", OpCode.GETPEER.value)
+
+def decode_getpeer(_: bytes):
+    return {"opcode": "GETPEER"}
+
+# ===== Give_Peer =====
+def encode_givepeer(data: dict):
+    peers = data.get("list_peers", [])
+    peer_count = len(peers)
+    encoded_peers = b""
+    for peer in peers:
+        ip_str, port = peer.split(":")
+        ip_bytes = socket.inet_aton(ip_str)
+        encoded_peers += struct.pack(">4sH", ip_bytes, int(port))
+    return struct.pack(">BI", OpCode.GIVEPEER.value, peer_count) + encoded_peers
+
+def decode_givepeer(payload: bytes):
+    peer_count = struct.unpack(">I", payload[:4])[0]
+    peers = []
+    offset = 4
+    for _ in range(peer_count):
+        ip_bytes, port = struct.unpack(">4sH", payload[offset:offset+6])
+        ip_str = socket.inet_ntoa(ip_bytes)
+        peers.append({"ip": ip_str, "port": port})
+        offset += 6
+    return {"opcode": "GIVEPEER", "peers": peers}
+
+
+
+
+
