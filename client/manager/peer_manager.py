@@ -15,16 +15,16 @@ class PeerManager:
 
     # raw
     def add_raw_addr(self, addr):
-        if addr not in self.raw_addrs and addr not in self.active_addrs:
-            with self.raw_addrs_lock:
-                self.raw_addrs.append(addr)
+        with self.raw_addrs_lock:
+            if addr not in self.raw_addrs and addr not in self.active_addrs:
+            self.raw_addrs.append(addr)
     
     def remove_raw_addr(self, addr):
-        if addr in self.raw_addrs:
-            with self.raw_addrs_lock:
+        with self.raw_addrs_lock:
+            if addr in self.raw_addrs:
                 self.raw_addrs.remove(addr)
-            with self.active_addrs_lock:
-                self.active_addrs.append(addr)
+                with self.active_addrs_lock:
+                    self.active_addrs.append(addr)
             
 
     # active

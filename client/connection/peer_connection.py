@@ -12,7 +12,7 @@ class HandlePeer:
         try:
             raw_msg = recv_msg(sock)
             msg = decode_raw_msg(raw_msg)
-            logging.info(f"Received {msg['opcode']} message")
+            logging.info(f"Received {msg['opcode']} message from")
             return msg
         except Exception as e:
             logging.error(f"Error during listen: {e}")

@@ -20,6 +20,12 @@ class Peer:
 
     def __repr__(self):
         return f"Peer(ip={self.ip}, port={self.port})"
+    
+    def unchoke(self):
+        self.status.am_choking = False
+    
+    def choke(self):
+        self.status.am_choking = True
 
 class PeerFactory:
     @staticmethod

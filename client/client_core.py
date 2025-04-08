@@ -181,8 +181,6 @@ class Client(Observer, Subject):
         list_bitfield = msg.get("str_bitfield")
         self.Peer_manager.update_index_bitfield(peer, list_bitfield)
 
-
-
 # start
 
     def start(self):
