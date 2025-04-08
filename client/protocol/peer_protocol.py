@@ -6,6 +6,9 @@ from enum import Enum
 class PeerOpCode(Enum):
     HANDSHAKE = 0x10
     BITFIELD = 0x11
+    INTERESTED = 0x12
+    CHOKED = 0x13
+    UNCHOKED = 0x14
 
 def send_msg(sock, msg: bytes):
     try:
@@ -41,8 +44,11 @@ def recvall(sock, n: int):
 def encode_msg(opcode: str, data: dict):
     try:
         return {
-            "HANDSHAKE": encode_handshake(data),
-            "BITFIELD": encode_bitfield(data)
+            "HANDSHAKE": encode_handshake,
+            "BITFIELD": encode_bitfield,
+            "INTERESTED": encode_interested,
+            "CHOKED": encode_choked,
+            "UNCHOKED": encode_unchoked
         }[opcode](data)
     except KeyError as e:
         logging.error(f"Invalid or missing opcode: {e}")
@@ -57,7 +63,10 @@ def decode_raw_msg(binary_data: bytes):
         payload = binary_data[1:]
         return {
             PeerOpCode.HANDSHAKE: decode_handshake,
-            PeerOpCode.BITFIELD: decode_bitfield
+            PeerOpCode.BITFIELD: decode_bitfield,
+            PeerOpCode.INTERESTED: decode_interested,
+            PeerOpCode.CHOKED: decode_choked,
+            PeerOpCode.UNCHOKED: decode_unchoked
         }[opcode](payload)
     except Exception as e:
         logging.error(f"Decode error: {e}")
@@ -71,7 +80,7 @@ def decode_handshake(data: bytes):
     peer_id, peer_port = struct.unpack('>20sH',data)
     return {
         "opcode": "HANDSHAKE",
-        "peer_id": peer_id,
+        "peer_id": peer_id.decode('utf-8'),
         "peer_port": peer_port
     }
 
@@ -93,3 +102,36 @@ def decode_bitfield(data):
         "opcode": "BITFIELD",
         "str_bitfield": full_bit_str[-bit_len:]
     }
+
+# INTERESTED
+
+def encode_interested(data= None):
+    return struct.pack('>B20sH', PeerOpCode.INTERESTED.value, data.get("peer_id").encode('utf-8'), data.get("peer_port"))
+
+def decode_interested(data= None):
+    peer_id, peer_port = struct.unpack('>20sH',data)
+    return {
+        "opcode": "INTERESTED",
+        "peer_id": peer_id.decode('utf-8'),
+        "peer_port": peer_port
+    }
+# CHOKE
+
+def encode_choked(data= None):
+    return struct.pack('>B', PeerOpCode.CHOKED.value)
+
+def decode_choked(data= None):
+    return {
+        "opcode": "CHOKED"
+    }
+
+# UNCHOKED
+
+def encode_unchoked(data= None):
+    return struct.pack('>B', PeerOpCode.UNCHOKED.value)
+
+def decode_unchoked(data= None):
+    return {
+        "opcode": "UNCHOKED"
+    }
+

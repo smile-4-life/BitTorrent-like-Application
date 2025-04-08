@@ -12,14 +12,15 @@ class HandlePeer:
         try:
             raw_msg = recv_msg(sock)
             msg = decode_raw_msg(raw_msg)
-            logging.info(f"Received {msg['opcode']} message from")
+            logging.info(f"Received {msg['opcode']} message from {sock.getpeername()}")
+            logging.debug(f"{msg}")
             return msg
         except Exception as e:
             logging.error(f"Error during listen: {e}")
             return None
 
 
-    def connect_to_peer(self, addr):
+    def connect_to_addr(self, addr):
         for attempt in range(1, 4):
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -31,4 +32,15 @@ class HandlePeer:
         logging.error(f"❌ Failed to connect to peer {addr[0]}:{addr[1]} after 3 attempts.")
         raise ConnectionError(f"Unable to connect to peer {addr[0]}:{addr[1]}")
     
+    def connect_to_peer(self, peer):
+        addr = (peer.ip, peer.port)
+        return self.connect_to_addr(addr)
     
+
+    def send_unchoke(sock, peer):
+        unchoke_msg = encode_unchoked()
+        send_msg(sock, choke_msg)
+
+    def send_choke(sock, peer):
+        choke_msg = encode_choked()
+        send_msg(sock, choke_msg)

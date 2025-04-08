@@ -3,6 +3,7 @@ class PeerStatus:
         self.download_speed = 0
         self.am_choking = True
         self.peer_choking = True
+        self.interested = False
 
 
 class Peer:
@@ -20,12 +21,6 @@ class Peer:
 
     def __repr__(self):
         return f"Peer(ip={self.ip}, port={self.port})"
-    
-    def unchoke(self):
-        self.status.am_choking = False
-    
-    def choke(self):
-        self.status.am_choking = True
 
 class PeerFactory:
     @staticmethod
