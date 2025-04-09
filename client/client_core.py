@@ -127,9 +127,11 @@ class Client(Observer, Subject):
                 sock.close()
                 break
             if opcode == "CHOKED":
+                self._handle_choked(sock, peer_ip, msg)
                 sock.close()
                 break
             if opcode == "UNCHOKED":
+                self._handle_unchoked(sock, peer_ip, msg)
                 sock.close()
                 break
 
@@ -189,12 +191,13 @@ class Client(Observer, Subject):
         peer_port = msg.get("peer_port")
         peer = self.Peer_manager.get_peer(peer_id)
         if peer:
+            print("co peer")
             self.Peer_manager.set_intersted(peer)
-        
-        return
+        else:
+            print("khong co")
 
-        if not self.unchoke_for_interested():
-            return
+        self.unchoke_for_interested(sock,peer)
+        return
 
         raw_msg = self.Peer_connection.receive_message(sock)
         msg = decode_raw_msg(raw_msg)
@@ -204,17 +207,30 @@ class Client(Observer, Subject):
     # ===== UTILS METHOD FOR INTERESTED =====
 
     def unchoke_for_interested(self, sock, peer):
-        if peer.status.am_choking == False:
-            self.send_unchoke(sock, peer)
-            return True
-        else:
-            if len(self.Peer_manager.unchoked_peers) < 2:
-                self.Peer_manager.unchoke(sock, peer)
+        print("here")
+        try:
+            if peer.status.am_choking == True:
+                print("check1")
+                self.Peer_connection.send_choke(sock, peer)
+                
                 return True
             else:
-                self.Peer_connection.send_choke(sock,peer)
-                return False
+                if len(self.Peer_manager.unchoked_peers) < 2:
+                    self.Peer_manager.unchoke(sock, peer)
+                    print("check")
+                    return True
+                else:
+                    print("check2")
+                    self.Peer_connection.send_choke(sock,peer)
+                    return False
+        except Exception as e:
+            print(e)
 
+    # ===== CHOKED =====
+    def _handle_choked(sock, peer_ip, msg):
+        pass
+    def _handle_unchoked(sock, peer_ip, msg):
+        pass
 
     # ===== HANDSHAKE =====
 
@@ -265,12 +281,25 @@ class Client(Observer, Subject):
     
     def _leeching(self):
         piece_assignments = self.Strategy_manager.select_pieces(self.Piece_manager, self.Peer_manager)
-        for peer in piece_assignments:
-            self.send_interested(peer)
-
-        for peer in self.Peer_manager.active_peers:
-            self.send_interested(peer)
-
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            for peer in piece_assignments:
+                executor.submit(self._interact_with_peer,peer,piece_assignments[peer])
+                
+    def _interact_with_peer(self, peer, list_pieces):
+        sock = self.send_interested(peer)
+        msg = self.Peer_connection.receive_message(sock)
+        if msg.get("opcode") == "CHOKED":
+            logging.info("Is Choked")
+            time.sleep(10)
+            if peer.status.am_choking != False:
+                logging.info("Still be choked after 5 seconds")
+                sock.close()
+            else:
+                logging.info("Check status again. Now is unchoked")
+        elif msg.get("opcode") == "UNCHOKED":
+            logging.info("No Choked")
+        else:
+            logging.info(f"Unexpected msg in interact with peer: {msg}")
     
     # ===== INTERESTED =====
     def send_interested(self, peer):
@@ -281,6 +310,7 @@ class Client(Observer, Subject):
         }
         interested_msg = encode_interested(raw_interested_msg)
         send_msg(sock, interested_msg)
+        return sock
 
 # start
 

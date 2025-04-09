@@ -37,10 +37,10 @@ class HandlePeer:
         return self.connect_to_addr(addr)
     
 
-    def send_unchoke(sock, peer):
+    def send_unchoke(self,sock, peer):
         unchoke_msg = encode_unchoked()
         send_msg(sock, choke_msg)
 
-    def send_choke(sock, peer):
+    def send_choke(self,sock, peer):
         choke_msg = encode_choked()
         send_msg(sock, choke_msg)

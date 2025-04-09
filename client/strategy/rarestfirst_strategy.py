@@ -35,7 +35,7 @@ class RarestFirstStrategy(PieceSelectionStrategy):
             # Sort peers by download speed (fastest first)
             sorted_peers = sorted(
                 available_peers,
-                key=lambda peer: peer.download_speed,
+                key=lambda peer: peer.status.download_speed,
                 reverse=True
             )
             

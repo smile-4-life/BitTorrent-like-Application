@@ -29,6 +29,7 @@ class ChokeManager:
                 if peer not in unchoked_peers:
                     try:
                         self._unchoke(peer, peer_connection)
+                        peer_manager.unchoked_peers.append(peer)
                         new_unchokes.append(peer)
                     except Exception as e:
                         logging.error(f"Failed to unchoke peer {peer}: {str(e)}")

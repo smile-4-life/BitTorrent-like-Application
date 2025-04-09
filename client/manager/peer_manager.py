@@ -56,7 +56,7 @@ class PeerManager:
     def update_index_bitfield(self, peer, list_bitfield):
         with self.index_bitfield_lock:
             peer.index_bitfield.update({
-                i: 1 for i, bit in enumerate(list_bitfield) if bit == 1
+                i: 1 for i, bit in enumerate(list_bitfield) if bit == "1"
             })
     
     # get peers pieces
