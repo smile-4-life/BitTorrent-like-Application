@@ -22,6 +22,9 @@ class Peer:
     def __repr__(self):
         return f"Peer(ip={self.ip}, port={self.port})"
 
+    def __hash__(self):
+        return hash(self.id)
+
 class PeerFactory:
     @staticmethod
     def new_peer(id, addr):

@@ -24,7 +24,7 @@ class PieceManager:
         self.pieces_left = self.pieces_count
         self.downloaded_count = 0
 
-        self.hash_to_index = {h: i for i, h in enumerate(self.list_pieces)}
+        self.hash_to_index = {h.decode('utf-8'): i for i, h in enumerate(self.list_pieces)}
         self.index_to_hash = {i: h for i, h in enumerate(self.list_pieces)}
         self.index_bitfield = {i: 0 for i in range(len(self.list_pieces))}
 
@@ -36,7 +36,7 @@ class PieceManager:
         for file in existing_pieces:
             if file.endswith('.bin'):
                 piece_hash = file[:-4]
-                if piece_hash in self.hash_to_index:
+                if piece_hash in self.hash_to_index.keys():
                     index = self.hash_to_index[piece_hash]
                     self.index_bitfield[index] = 1
                     self.pieces_left -= 1

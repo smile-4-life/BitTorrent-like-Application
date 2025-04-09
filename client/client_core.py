@@ -45,7 +45,6 @@ class Client(Observer, Subject):
         self.port = int(input("Enter port: "))
 
         self.Piece_manager = PieceManager( config )
-        self.Piece_manager.scan_downloaded_pieces()
         self.Choke_manager = ChokeManager(SeederState() if self.Piece_manager.pieces_left == 0 else LeecherState())
 
         self.tracker_URL = self.Piece_manager.tracker_URL
@@ -129,11 +128,9 @@ class Client(Observer, Subject):
                 break
             if opcode == "CHOKED":
                 sock.close()
-                print("CHOKED")
                 break
             if opcode == "UNCHOKED":
                 sock.close()
-                print("UNCHOKED")
                 break
 
 
@@ -153,7 +150,7 @@ class Client(Observer, Subject):
         except Exception as e:
             logging.error(f"Unexpected error in _handshake: {e}")
         finally:
-            print("Close handshake socket")
+            logging.info("Close handshake socket")
             sock.close()
 
     # ===== UTILS METHODS FOR HANDSHAKE
@@ -190,12 +187,19 @@ class Client(Observer, Subject):
     def _handle_interested(self, sock, peer_ip, msg):
         peer_id = msg.get("peer_id")
         peer_port = msg.get("peer_port")
+        peer = self.Peer_manager.get_peer(peer_id)
+        if peer:
+            self.Peer_manager.set_intersted(peer)
         
+        return
+
         if not self.unchoke_for_interested():
             return
 
         raw_msg = self.Peer_connection.receive_message(sock)
         msg = decode_raw_msg(raw_msg)
+        if msg.get("opcode") != "REQUEST":
+            logging.error("Unexpected Opcode")
 
     # ===== UTILS METHOD FOR INTERESTED =====
 
@@ -235,7 +239,7 @@ class Client(Observer, Subject):
         except Exception as e:
             logging.error(f"Unexpected error in _handshake: {e}")
         finally:
-            print("Close request hashshake socket")
+            logging.info("Close request hashshake socket")
             sock.close()
 
     
@@ -249,7 +253,7 @@ class Client(Observer, Subject):
     def _loop_choking(self):
         while True:
             if self.Piece_manager.pieces_left == 0:
-                self.Choke_manager.set_strategy(SeederState())
+                self.Choke_manager.set_state(SeederState())
             self.Choke_manager.run_choking_cycle(self.Peer_manager, self.Peer_connection)
             time.sleep(10) 
     
@@ -262,7 +266,10 @@ class Client(Observer, Subject):
     def _leeching(self):
         piece_assignments = self.Strategy_manager.select_pieces(self.Piece_manager, self.Peer_manager)
         for peer in piece_assignments:
-            send_interested(peer)
+            self.send_interested(peer)
+
+        for peer in self.Peer_manager.active_peers:
+            self.send_interested(peer)
 
     
     # ===== INTERESTED =====
@@ -272,7 +279,7 @@ class Client(Observer, Subject):
             "peer_id": self.id,
             "peer_port": self.port
         }
-        interested_msg = encode_intersted(raw_interested_msg)
+        interested_msg = encode_interested(raw_interested_msg)
         send_msg(sock, interested_msg)
 
 # start

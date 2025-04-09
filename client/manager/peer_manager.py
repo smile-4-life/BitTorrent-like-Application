@@ -18,6 +18,7 @@ class PeerManager:
 
 
     # raw
+
     def add_raw_addr(self, addr):
         with self.raw_addrs_lock:
             if addr not in self.raw_addrs and addr not in self.active_addrs:
@@ -32,12 +33,14 @@ class PeerManager:
             
 
     # active
+
     def add_active_peer(self, peer):
         with self.active_peers_lock:
             if peer not in self.active_peers:
                 self.active_peers.append(peer)
 
     # inflight
+
     def add_inflight_request(self, peer):
         with self.inflight_request_lock:
             if peer not in self.inflight_request:
@@ -49,15 +52,22 @@ class PeerManager:
                 self.inflight_request.remove(peer)
 
     # bit field
+
     def update_index_bitfield(self, peer, list_bitfield):
         with self.index_bitfield_lock:
             peer.index_bitfield.update({
                 i: 1 for i, bit in enumerate(list_bitfield) if bit == 1
             })
     
-    # get peers
+    # get peers pieces
+
     def get_all_peers(self):
         return self.active_peers
+
+    def get_peer(self, id):
+        found_peers = [peer for peer in self.active_peers if peer.id == id]
+        return found_peers[0] if found_peers else None
+
     
     def get_peers_with_piece(self, index):
         try:
@@ -67,6 +77,17 @@ class PeerManager:
     
     def get_pieces_for_peer(self, peer):
         return [index for index, bitfield in peer.index_bitfield.items() if bitfield == 0]
+    
+    # unchoked peers
+
+    def get_unchoked_peers(self):
+        with self.unchoked_peers_lock:
+            return self.unchoked_peers
+    
+    def remove_unchoked_peers(self,peer):
+        with self.unchoked_peers_lock:
+            if peer in self.unchoked_peers:
+                self.unchoked_peers.remove(peer)
 
     # interested list
     def set_intersted(self, peer):
@@ -78,7 +99,7 @@ class PeerManager:
     #choke and unchoke
     def unchoke(self, sock, peer):
         peer.status.am_choking = False
-        with unchoked_peers_lock:
+        with self.unchoked_peers_lock:
             if peer in self.unchoked_peers:
                 return
             else:
@@ -88,7 +109,7 @@ class PeerManager:
     
     def choke(self, sock, peer):
         peer.status.am_choking = True
-        with unchoked_peers_lock:
+        with self.unchoked_peers_lock:
             if peer not in self.unchoked_peers:
                 return
             else:
