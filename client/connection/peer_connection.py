@@ -17,6 +17,7 @@ class HandlePeer:
             return msg
         except Exception as e:
             logging.error(f"Error during listen: {e}")
+            raise
             return None
 
 
@@ -36,11 +37,3 @@ class HandlePeer:
         addr = (peer.ip, peer.port)
         return self.connect_to_addr(addr)
     
-
-    def send_unchoke(self,sock, peer):
-        unchoke_msg = encode_unchoked()
-        send_msg(sock, choke_msg)
-
-    def send_choke(self,sock, peer):
-        choke_msg = encode_choked()
-        send_msg(sock, choke_msg)

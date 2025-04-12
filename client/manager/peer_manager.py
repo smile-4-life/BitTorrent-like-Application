@@ -1,4 +1,7 @@
 import threading
+import logging
+from protocol.peer_protocol import *
+
 
 class PeerManager:
     def __init__(self):
@@ -51,6 +54,42 @@ class PeerManager:
             if peer in self.inflight_request:
                 self.inflight_request.remove(peer)
 
+    # unchoked peers
+
+    def add_unchoked_peer(self, peer):
+        with self.unchoked_peers_lock:
+            if peer not in self.unchoked_peers:
+                self.unchoked_peers.append(peer)
+                with peer.status_lock:
+                    peer.status.am_choking = False
+    
+    def remove_unchoked_peer(self, peer):
+        with self.unchoked_peers_lock:
+            if peer in self.unchoked_peers:
+                self.unchoked_peers.remove(peer)
+                with peer.status_lock:
+                    peer.status.am_choking = True
+             
+    
+    #status
+    def set_peer_choking(self, peer_id):
+        try:
+            peer = self.get_peer(peer_id)
+        except Exception as e:
+            logging.error(f"Unexpected error in set_peer_choking: {e}")
+        if peer:
+            with peer.status_lock:
+                peer.status.peer_choking = True
+        
+        
+
+
+    def reset_peer_choking(self, peer_id):
+        peer = self.get_peer(peer_id)
+        if peer:
+            with peer.status_lock:
+                peer.status.peer_choking = False
+
     # bit field
 
     def update_index_bitfield(self, peer, list_bitfield):
@@ -91,28 +130,51 @@ class PeerManager:
 
     # interested list
     def set_intersted(self, peer):
-        peer.status.interested = True
+        with peer.status_lock:
+            peer.status.interested = True
 
     def get_interested_peers(self):
-        return list(peer for peer in self.active_peers if peer.status.interested == True)
+        with self.active_peers_lock:    
+                return list(peer for peer in self.active_peers if peer.status.interested == True)
 
     #choke and unchoke
-    def unchoke(self, sock, peer):
-        peer.status.am_choking = False
+
+    def check_and_choke(self, sock, peer):
+        try:
+            with peer.status_lock:
+                peer.status.am_choking = True
+            with self.unchoked_peers_lock:
+                if peer not in self.unchoked_peers:
+                    logging.warning("Peer is choked but try to send_choked")
+                else:
+                    self.unchoked_peers.remove(peer)
+                    with peer.status_lock:
+                        peer.status.am_choking = True
+            choke_msg = encode_choked()
+            send_msg(sock, choke_msg)
+        except Exception as e:
+            logging.error(f"Unexpected error in check_and_choke: {e}")
+            raise
+
+    def check_and_unchoke(self, sock, peer):
+        with peer.status_lock:
+            peer.status.am_choking = False
         with self.unchoked_peers_lock:
             if peer in self.unchoked_peers:
-                return
+                logging.warning("Peer is unchoked but try to send_unchoked")
             else:
                 self.unchoked_peers.append(peer)
-        unchoke_msg = encode_unchoked()
-        send_msg(sock, choke_msg)
+                with peer.status_lock:
+                    peer.status.am_choking = False
+        unchoke_msg = encode_unchoked(None)
+        send_msg(sock, unchoke_msg)
     
-    def choke(self, sock, peer):
-        peer.status.am_choking = True
-        with self.unchoked_peers_lock:
-            if peer not in self.unchoked_peers:
-                return
-            else:
-                self.unchoked_peers.remove(peer)
-        choke_msg = encode_choked()
-        send_msg(sock, choke_msg)
+    def send_choked(self, sock, peer):
+        choke_msg = encode_choked(None)
+        send_msg(sock,choke_msg)
+        Peer_manager.remove_unchoked_peer(peer)
+
+    def send_unchoked(self, sock, peer):
+        unchoke_msg = encode_unchoked(None)
+        send_msg(sock,unchoke_msg)
+        Peer_manager.remove_unchoked_peer(peer)

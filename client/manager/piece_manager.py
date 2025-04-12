@@ -1,7 +1,9 @@
 import threading
 import hashlib
+import os
+import logging
 
-from manager.piece_lock_manager import lock_manager
+from manager.piece_lock_manager import Lock_manager
 from utils.torrent_reader import TorrentReader
 
 class PieceManager:
@@ -25,13 +27,13 @@ class PieceManager:
         self.downloaded_count = 0
 
         self.hash_to_index = {h.decode('utf-8'): i for i, h in enumerate(self.list_pieces)}
-        self.index_to_hash = {i: h for i, h in enumerate(self.list_pieces)}
+        self.index_to_hash = {i: h.decode('utf-8') for i, h in enumerate(self.list_pieces)}
         self.index_bitfield = {i: 0 for i in range(len(self.list_pieces))}
 
         self.scan_downloaded_pieces()
 
     def scan_downloaded_pieces(self):
-        import os
+        os.makedirs(self.download_folder_path, exist_ok=True)
         existing_pieces = os.listdir(self.download_folder_path)
         for file in existing_pieces:
             if file.endswith('.bin'):
@@ -79,3 +81,31 @@ class PieceManager:
             for index in list_index:
                 if self.index_bitfield.get(index) == 2:
                     self.index_bitfield[index] = 0
+    
+    # load piece to upload
+
+    def load_piece(self,piece_index):
+        try:
+            piece_file = os.path.join(    self.download_folder_path, 
+                                          f"{self.index_to_hash[piece_index]}.bin")
+            lock = Lock_manager.get_lock(piece_index)
+            with lock:
+                with open(piece_file, 'rb') as f:
+                    piece = f.read()
+                    return piece
+        except FileNotFoundError:
+            logging.error(f"Error: file for piece {piece_index} not found at {piece_file}")
+            return None
+    
+    def down_piece(self, piece_index, piece):
+        try:
+            piece_file = os.path.join(    self.download_folder_path, 
+                                          f"{self.index_to_hash[piece_index]}.bin")
+            lock = Lock_manager.get_lock(piece_index)
+            with lock:
+                with open(piece_file, 'wb') as f:
+                    f.write(piece)
+                    return True
+        except FileNotFoundError:
+            logging.error(f"Error: file for piece {piece_index} not found at {piece_file}")
+            return False

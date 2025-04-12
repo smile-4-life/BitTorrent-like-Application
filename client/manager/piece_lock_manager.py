@@ -5,7 +5,7 @@ class PieceLockManager:
     def __init__(self):
         self.locks = defaultdict(Lock)
 
-    def get_lock(self, piece_hash):
-        return self.locks[piece_hash]
+    def get_lock(self, piece_index):
+        return self.locks[piece_index]
 
-lock_manager = PieceLockManager()
+Lock_manager = PieceLockManager()

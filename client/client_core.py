@@ -30,6 +30,11 @@ from utils.generate_id import generate_peer_id
 from state.leecher_choke import LeecherState
 from state.seeder_choke import SeederState
 
+from handler.handshake import Handshake
+from handler.seeding import Seeding
+from handler.leeching import Leeching
+from handler.choking import Choking
+
 CONFIG_PATH = "config\\client_config.json"
 
 class Client(Observer, Subject):
@@ -40,17 +45,24 @@ class Client(Observer, Subject):
         self.Peer_factory = PeerFactory()
         self.Strategy_manager = StrategyManager()
 
-        config = load_config(CONFIG_PATH)
-        #self.port = config['client_port']
+        self.id = generate_peer_id()
+        self.ip = '0.0.0.0'  # should connect with tracker to get public IP
         self.port = int(input("Enter port: "))
 
+        config = load_config(CONFIG_PATH)
+        #self.port = config['client_port']
+        
         self.Piece_manager = PieceManager( config )
-        self.Choke_manager = ChokeManager(SeederState() if self.Piece_manager.pieces_left == 0 else LeecherState())
-
         self.tracker_URL = self.Piece_manager.tracker_URL
-        self.ip = '0.0.0.0'  # should connect with tracker to get public IP
-        self.id = generate_peer_id()
 
+        self.Choke_manager = ChokeManager(SeederState() if self.Piece_manager.pieces_left == 0 else LeecherState(), self.id)
+        
+        shared_args = (self.id, self.port, self.Piece_manager, self.Peer_manager, self.Peer_connection)
+
+        self.Handshake_handler = Handshake(*shared_args, self.Peer_factory)
+        self.Leeching_handler = Leeching(*shared_args, self.Strategy_manager)
+        self.Seeding_handler = Seeding(*shared_args)
+        self.Choking_handler = Choking(*shared_args, self.Choke_manager)
 
             #=====Observer Parttern=====
 
@@ -87,8 +99,6 @@ class Client(Observer, Subject):
                 self.Peer_manager.add_raw_addr(addr)
 
     #=====  CLIENT  =====
-
-
     def start_listening(self):
         listener_thread = threading.Thread(target=self._listen)
         listener_thread.daemon = True
@@ -111,206 +121,32 @@ class Client(Observer, Subject):
             logging.error(f"Unexpected error: {e}")
 
     def _handle_connection(self, sock, peer_ip):
-        while True:
-            msg = self.Peer_connection.receive_message(sock)
-            if not msg:
-                return
-    
-            opcode = msg.get("opcode")
-
-            if opcode == "HANDSHAKE":
-                self._handle_handshake(sock, peer_ip, msg)
-                sock.close()
-                break
-            if opcode == "INTERESTED":
-                self._handle_interested(sock, peer_ip, msg)
-                sock.close()
-                break
-            if opcode == "CHOKED":
-                self._handle_choked(sock, peer_ip, msg)
-                sock.close()
-                break
-            if opcode == "UNCHOKED":
-                self._handle_unchoked(sock, peer_ip, msg)
-                sock.close()
-                break
-
-
-    # ===== HANDSHAKE =====
-
-    def _handle_handshake(self, sock, peer_ip, msg):
         try:
-            peer_id = msg.get("peer_id")
-            peer_port = msg.get("peer_port")
-            new_peer = self._process_peer_handshake(peer_id, peer_ip, peer_port)
-            
-            reply_msg = self._build_handshake_msg()
-            send_msg(sock, reply_msg)
-            
-            self._receive_and_update_bitfield(sock, new_peer)
-            self._send_bitfield(sock)
+            while True:
+                msg = self.Peer_connection.receive_message(sock)
+                if not msg:
+                    return
+        
+                opcode = msg.get("opcode")
+
+                if opcode == "HANDSHAKE":
+                    self.Handshake_handler._handle_handshake(sock, peer_ip, msg)
+                    sock.close()
+                    break
+                if opcode == "INTERESTED":
+                    self.Seeding_handler.handle_interested(sock, peer_ip, msg)
+                    sock.close()
+                    break
+                if opcode == "CHOKED":
+                    self._handle_choked(sock, peer_ip, msg)
+                    sock.close()
+                    break
+                if opcode == "UNCHOKED":
+                    self._handle_unchoked(sock, peer_ip, msg)
+                    sock.close()
+                    break
         except Exception as e:
-            logging.error(f"Unexpected error in _handshake: {e}")
-        finally:
-            logging.info("Close handshake socket")
-            sock.close()
-
-    # ===== UTILS METHODS FOR HANDSHAKE
-
-    def _process_peer_handshake(self, peer_id, peer_ip, peer_port):
-        addr = (peer_ip, peer_port)
-        self.Peer_manager.remove_raw_addr(addr)
-        new_peer = self.Peer_factory.new_peer(peer_id, addr)
-        self.Peer_manager.add_active_peer(new_peer)
-        return new_peer
-
-    def _build_handshake_msg(self):
-        return encode_handshake(
-                {
-                "peer_id": self.id,
-                "peer_port": self.port
-                }
-            )
-
-    def _send_bitfield(self, sock):
-        msg = {
-            "str_bitfield": self.Piece_manager.get_str_bitfield()
-        }
-        bi_msg = encode_bitfield(msg)
-        send_msg(sock, bi_msg)
-    
-    def _receive_and_update_bitfield(self, sock, peer):
-        msg = self.Peer_connection.receive_message(sock)
-        list_bitfield = msg.get("str_bitfield")
-        self.Peer_manager.update_index_bitfield(peer, list_bitfield)
-
-    # ===== INTERESTED =====
-
-    def _handle_interested(self, sock, peer_ip, msg):
-        peer_id = msg.get("peer_id")
-        peer_port = msg.get("peer_port")
-        peer = self.Peer_manager.get_peer(peer_id)
-        if peer:
-            print("co peer")
-            self.Peer_manager.set_intersted(peer)
-        else:
-            print("khong co")
-
-        self.unchoke_for_interested(sock,peer)
-        return
-
-        raw_msg = self.Peer_connection.receive_message(sock)
-        msg = decode_raw_msg(raw_msg)
-        if msg.get("opcode") != "REQUEST":
-            logging.error("Unexpected Opcode")
-
-    # ===== UTILS METHOD FOR INTERESTED =====
-
-    def unchoke_for_interested(self, sock, peer):
-        print("here")
-        try:
-            if peer.status.am_choking == True:
-                print("check1")
-                self.Peer_connection.send_choke(sock, peer)
-                
-                return True
-            else:
-                if len(self.Peer_manager.unchoked_peers) < 2:
-                    self.Peer_manager.unchoke(sock, peer)
-                    print("check")
-                    return True
-                else:
-                    print("check2")
-                    self.Peer_connection.send_choke(sock,peer)
-                    return False
-        except Exception as e:
-            print(e)
-
-    # ===== CHOKED =====
-    def _handle_choked(sock, peer_ip, msg):
-        pass
-    def _handle_unchoked(sock, peer_ip, msg):
-        pass
-
-    # ===== HANDSHAKE =====
-
-    def start_handshake(self):
-            with ThreadPoolExecutor(max_workers = 5) as executor:
-                futures = [executor.submit(self._handshake, addr) for addr in self.Peer_manager.raw_addrs]
-                for future in futures:
-                    result = future.result()
-            
-    def _handshake(self, addr):
-        try:
-            sock = self.Peer_connection.connect_to_addr(addr)
-            handshake_msg = self._build_handshake_msg()
-            send_msg(sock, handshake_msg)
-            msg = self.Peer_connection.receive_message(sock)
-            peer_id = msg.get("peer_id")
-            peer_port = msg.get("peer_port")
-            new_peer = self._process_peer_handshake(peer_id, addr[0], peer_port)
-            
-            self._send_bitfield(sock)
-            self._receive_and_update_bitfield(sock, new_peer)
-        except Exception as e:
-            logging.error(f"Unexpected error in _handshake: {e}")
-        finally:
-            logging.info("Close request hashshake socket")
-            sock.close()
-
-    
-
-    # ===== CHOKING LOOP =====
-    def start_loop_choking (self):
-        choking_thread = threading.Thread(target=self._loop_choking)
-        choking_thread.daemon = True
-        choking_thread.start()
-
-    def _loop_choking(self):
-        while True:
-            if self.Piece_manager.pieces_left == 0:
-                self.Choke_manager.set_state(SeederState())
-            self.Choke_manager.run_choking_cycle(self.Peer_manager, self.Peer_connection)
-            time.sleep(10) 
-    
-    # ===== LEECHING =====
-    def start_leeching(self):
-        leeching_thread = threading.Thread(target = self._leeching)
-        leeching_thread.daemon = True
-        leeching_thread.start()
-    
-    def _leeching(self):
-        piece_assignments = self.Strategy_manager.select_pieces(self.Piece_manager, self.Peer_manager)
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            for peer in piece_assignments:
-                executor.submit(self._interact_with_peer,peer,piece_assignments[peer])
-                
-    def _interact_with_peer(self, peer, list_pieces):
-        sock = self.send_interested(peer)
-        msg = self.Peer_connection.receive_message(sock)
-        if msg.get("opcode") == "CHOKED":
-            logging.info("Is Choked")
-            time.sleep(10)
-            if peer.status.am_choking != False:
-                logging.info("Still be choked after 5 seconds")
-                sock.close()
-            else:
-                logging.info("Check status again. Now is unchoked")
-        elif msg.get("opcode") == "UNCHOKED":
-            logging.info("No Choked")
-        else:
-            logging.info(f"Unexpected msg in interact with peer: {msg}")
-    
-    # ===== INTERESTED =====
-    def send_interested(self, peer):
-        sock = self.Peer_connection.connect_to_peer(peer)
-        raw_interested_msg = {
-            "peer_id": self.id,
-            "peer_port": self.port
-        }
-        interested_msg = encode_interested(raw_interested_msg)
-        send_msg(sock, interested_msg)
-        return sock
+            logging.error(f"Unexpected error in _handle_connection: {e}")
 
 # start
 
@@ -319,9 +155,9 @@ class Client(Observer, Subject):
             self.register()
             self.getlistpeer()
             self.start_listening()
-            self.start_handshake()
-            self.start_loop_choking()
-            self.start_leeching()
+            self.Handshake_handler.start_handshake()
+            self.Choking_handler.start_loop_choking()
+            self.Leeching_handler.start_leeching()
 
             input()
             self.unregister()

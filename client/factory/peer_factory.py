@@ -1,3 +1,5 @@
+import threading
+
 class PeerStatus:
     def __init__(self):
         self.download_speed = 0
@@ -8,11 +10,14 @@ class PeerStatus:
 
 class Peer:
     def __init__(self,id, addr):
+        self.status_lock = threading.Lock()
+
         self.id = id
         self.ip = addr[0]
         self.port = addr[1]
         self.status = PeerStatus()
         self.index_bitfield = {}
+        
         
     def __eq__(self, other):
         if not isinstance(other, Peer):

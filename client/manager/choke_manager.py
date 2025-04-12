@@ -4,23 +4,24 @@ from protocol.peer_protocol import *
 import logging
 
 class ChokeManager:
-    def __init__(self, state):
+    def __init__(self, state, id):
         self.state = state
+        self.peer_id = id
 
     def set_state(self, state):
         self.state = state
 
-    def run_choking_cycle(self, peer_manager, peer_connection):
+    def run_choking_cycle(self, Peer_manager, Peer_connection):
         """Execute the choking algorithm to optimize peer connections."""
         try:
             # 1. Select peers to unchoke based on current strategy
-            selected_peers = self.state.select_peers_to_unchoke(peer_manager)
+            selected_peers = self.state.select_peers_to_unchoke(Peer_manager)
             if not selected_peers:
                 logging.warning("No peers selected for unchoking")
                 return
 
             # 2. Get currently unchoked peers
-            unchoked_peers = set(peer_manager.get_unchoked_peers())  # Convert to set for faster lookups
+            unchoked_peers = set(Peer_manager.get_unchoked_peers())  # Convert to set for faster lookups
             new_unchokes = []
             already_unchoked = []
 
@@ -28,8 +29,8 @@ class ChokeManager:
             for peer in selected_peers:
                 if peer not in unchoked_peers:
                     try:
-                        self._unchoke(peer, peer_connection)
-                        peer_manager.unchoked_peers.append(peer)
+                        self._unchoke(peer, Peer_connection, Peer_manager)
+                        Peer_manager.unchoked_peers.append(peer)
                         new_unchokes.append(peer)
                     except Exception as e:
                         logging.error(f"Failed to unchoke peer {peer}: {str(e)}")
@@ -42,8 +43,8 @@ class ChokeManager:
             # 5. Process choking
             for peer in peers_to_choke:
                 try:
-                    peer_manager.remove_unchoked_peers(peer)
-                    self._choke(peer, peer_connection)
+                    Peer_manager.remove_unchoked_peers(peer)
+                    self._choke(peer, Peer_connection)
                     logging.debug(f"Choked peer {peer}")
                 except Exception as e:
                     logging.error(f"Failed to choke peer {peer}: {str(e)}")
@@ -60,14 +61,34 @@ class ChokeManager:
             logging.error(f"Error in choking cycle: {str(e)}", exc_info=True)
 
     
-    def _unchoke(self, peer, Peer_connection):
+    def _unchoke(self, peer, Peer_connection, Peer_manager):
+        if peer in Peer_manager.unchoked_peers:
+            return
+        #else
         sock = Peer_connection.connect_to_peer(peer)
-        unchoke_msg = encode_unchoked()
+        
+        raw_msg = {
+            "opcode": "UNCHOKED",
+            "peer_id": self.peer_id
+        }
+        unchoke_msg = encode_unchoked(raw_msg)
         send_msg(sock,unchoke_msg)
-
-    def _choke(self, peer, Peer_connection):
-        sock = Peer_connection.connect_to_peer(peer)
-        choke_msg = encode_choked({})
-        send_msg(sock, choke_msg)
+        Peer_manager.add_unchoked_peer(peer)
+        print(peer.status.am_choking)
             
+
+
+    def _choke(self, peer, Peer_connection, Peer_manager):
+        if peer not in Peer_manager.unchoked_peers:
+            return
+        #else
+        sock = Peer_connection.connect_to_peer(peer)
+        
+        raw_msg = {
+            "opcode": "CHOKED",
+            "peer_id": self.peer_id
+        }
+        choke_msg = encode_choked(raw_msg)
+        send_msg(sock,choke_msg)
+        Peer_manager.remove_unchoked_peer(peer)
         
