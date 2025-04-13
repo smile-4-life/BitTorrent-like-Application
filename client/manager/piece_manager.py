@@ -22,7 +22,6 @@ class PieceManager:
             self.file_length,
             self.pieces_count
         ) = Reader.read_torrent_file(self.metainfo_file_path)
-
         self.pieces_left = self.pieces_count
         self.downloaded_count = 0
 
@@ -105,7 +104,21 @@ class PieceManager:
             with lock:
                 with open(piece_file, 'wb') as f:
                     f.write(piece)
-                    return True
+            
+            hash_value = hashlib.sha1(piece).hexdigest()
+            expected_hash = self.index_to_hash[piece_index]
+
+            if hash_value != expected_hash:
+                logging.warning(f"Hash mismatch for piece {piece_index}. Expected {expected_hash}, got {hash_value}")
+                os.remove(piece_file)
+                return False
+
+            self.pieces_left-=1
+            self.downloaded_count+=1
+            return True
         except FileNotFoundError:
             logging.error(f"Error: file for piece {piece_index} not found at {piece_file}")
             return False
+        except Exception as e:
+            logging.error(f"Unexpected error in down_piece: {e}")
+        return False

@@ -30,24 +30,30 @@ from utils.generate_id import generate_peer_id
 from state.leecher_choke import LeecherState
 from state.seeder_choke import SeederState
 
-from handler.handshake import Handshake
-from handler.seeding import Seeding
-from handler.leeching import Leeching
-from handler.choking import Choking
+from modules.handshake import Handshake
+from modules.leeching import Leeching
+from modules.choking import Choking
+
+from handler.handshake_handler import HandleHandshake
+from handler.interested_handler import HandleInterested
+from handler.choking_handler import HandleChoking
+from handler.request_handler import HandleRequest
+from handler.piece_handler import HandlePiece
+from handler.base_handler import HandshakeHandler, InterestedHandler, ChokedHandler, UnchokedHandler, RequestHandler, PieceHandler
 
 CONFIG_PATH = "config\\client_config.json"
 
 class Client(Observer, Subject):
     def __init__(self):
-        self.Tracker_connection = HandleTracker()
-        self.Peer_connection = HandlePeer()
-        self.Peer_manager = PeerManager()
-        self.Peer_factory = PeerFactory()
-        self.Strategy_manager = StrategyManager()
-
         self.id = generate_peer_id()
         self.ip = '0.0.0.0'  # should connect with tracker to get public IP
         self.port = int(input("Enter port: "))
+
+        self.Tracker_connection = HandleTracker()
+        self.Peer_connection = HandlePeer()
+        self.Peer_manager = PeerManager(self.id)
+        self.Peer_factory = PeerFactory()
+        self.Strategy_manager = StrategyManager()
 
         config = load_config(CONFIG_PATH)
         #self.port = config['client_port']
@@ -59,10 +65,19 @@ class Client(Observer, Subject):
         
         shared_args = (self.id, self.port, self.Piece_manager, self.Peer_manager, self.Peer_connection)
 
-        self.Handshake_handler = Handshake(*shared_args, self.Peer_factory)
-        self.Leeching_handler = Leeching(*shared_args, self.Strategy_manager)
-        self.Seeding_handler = Seeding(*shared_args)
-        self.Choking_handler = Choking(*shared_args, self.Choke_manager)
+        self.Handshake_handler = HandleHandshake(*shared_args, self.Peer_factory)
+        self.Interested_handler = HandleInterested(*shared_args)
+        self.Request_handler = HandleRequest(*shared_args)
+
+        self.command_dispatcher = {
+            "HANDSHAKE": HandshakeHandler(self.Handshake_handler),
+            "INTERESTED": InterestedHandler(self.Interested_handler),
+            "REQUEST": RequestHandler(self.Request_handler),
+        }
+
+        self.Handshake_module = Handshake(*shared_args, self.Peer_factory)
+        self.Choking_module = Choking(*shared_args, self.Choke_manager)
+        self.Leeching_module = Leeching(*shared_args, self.Strategy_manager)
 
             #=====Observer Parttern=====
 
@@ -123,30 +138,27 @@ class Client(Observer, Subject):
     def _handle_connection(self, sock, peer_ip):
         try:
             while True:
+                print("In while")
                 msg = self.Peer_connection.receive_message(sock)
                 if not msg:
                     return
         
                 opcode = msg.get("opcode")
+                if opcode == "DONE":
+                    break
+                handler = self.command_dispatcher.get(opcode)
 
-                if opcode == "HANDSHAKE":
-                    self.Handshake_handler._handle_handshake(sock, peer_ip, msg)
-                    sock.close()
-                    break
-                if opcode == "INTERESTED":
-                    self.Seeding_handler.handle_interested(sock, peer_ip, msg)
-                    sock.close()
-                    break
-                if opcode == "CHOKED":
-                    self._handle_choked(sock, peer_ip, msg)
-                    sock.close()
-                    break
-                if opcode == "UNCHOKED":
-                    self._handle_unchoked(sock, peer_ip, msg)
-                    sock.close()
+                if handler:
+                    handler.handle(sock, peer_ip, msg)
+                else:
+                    logging.warning(f"Unknown opcode {opcode} from {peer_ip}")
                     break
         except Exception as e:
             logging.error(f"Unexpected error in _handle_connection: {e}")
+        finally:
+            if sock:
+                sock.close()
+                logging.info(f"Closed socket with {peer_ip}.")
 
 # start
 
@@ -155,9 +167,9 @@ class Client(Observer, Subject):
             self.register()
             self.getlistpeer()
             self.start_listening()
-            self.Handshake_handler.start_handshake()
-            self.Choking_handler.start_loop_choking()
-            self.Leeching_handler.start_leeching()
+            self.Handshake_module.start_handshake()
+            self.Choking_module.start_loop_choking()
+            self.Leeching_module.start_leeching()
 
             input()
             self.unregister()

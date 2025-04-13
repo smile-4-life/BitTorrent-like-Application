@@ -1,6 +1,8 @@
 from state.leecher_choke import LeecherState
 from state.seeder_choke import SeederState
 from protocol.peer_protocol import *
+from handler.choking_handler import HandleChoking
+from handler.piece_handler import HandlePiece
 import logging
 
 class ChokeManager:
@@ -65,30 +67,25 @@ class ChokeManager:
         if peer in Peer_manager.unchoked_peers:
             return
         #else
-        sock = Peer_connection.connect_to_peer(peer)
         
         raw_msg = {
             "opcode": "UNCHOKED",
             "peer_id": self.peer_id
         }
         unchoke_msg = encode_unchoked(raw_msg)
-        send_msg(sock,unchoke_msg)
+        send_msg(peer.sock,unchoke_msg)
         Peer_manager.add_unchoked_peer(peer)
-        print(peer.status.am_choking)
-            
-
 
     def _choke(self, peer, Peer_connection, Peer_manager):
         if peer not in Peer_manager.unchoked_peers:
             return
         #else
-        sock = Peer_connection.connect_to_peer(peer)
         
         raw_msg = {
             "opcode": "CHOKED",
             "peer_id": self.peer_id
         }
         choke_msg = encode_choked(raw_msg)
-        send_msg(sock,choke_msg)
+        send_msg(peer.sock,choke_msg)
         Peer_manager.remove_unchoked_peer(peer)
         

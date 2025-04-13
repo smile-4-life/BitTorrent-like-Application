@@ -4,7 +4,8 @@ from protocol.peer_protocol import *
 
 
 class PeerManager:
-    def __init__(self):
+    def __init__(self, id):
+        self.id = id
         self.index_bitfield_lock = threading.Lock()
 
         self.raw_addrs_lock = threading.Lock()
@@ -80,20 +81,17 @@ class PeerManager:
         if peer:
             with peer.status_lock:
                 peer.status.peer_choking = True
-        
-        
-
 
     def reset_peer_choking(self, peer_id):
         peer = self.get_peer(peer_id)
         if peer:
             with peer.status_lock:
                 peer.status.peer_choking = False
-
     # bit field
 
-    def update_index_bitfield(self, peer, list_bitfield):
+    def update_index_bitfield(self, peer, pieces_left, list_bitfield):
         with self.index_bitfield_lock:
+            peer.pieces_left = pieces_left
             peer.index_bitfield.update({
                 i: 1 for i, bit in enumerate(list_bitfield) if bit == "1"
             })
@@ -150,7 +148,12 @@ class PeerManager:
                     self.unchoked_peers.remove(peer)
                     with peer.status_lock:
                         peer.status.am_choking = True
-            choke_msg = encode_choked()
+            raw_msg = {
+                "opcode": "CHOKED",
+                "peer_id": self.id
+            }
+
+            choke_msg = encode_choked(raw_msg)
             send_msg(sock, choke_msg)
         except Exception as e:
             logging.error(f"Unexpected error in check_and_choke: {e}")
@@ -166,8 +169,13 @@ class PeerManager:
                 self.unchoked_peers.append(peer)
                 with peer.status_lock:
                     peer.status.am_choking = False
-        unchoke_msg = encode_unchoked(None)
+        raw_msg = {
+            "opcode": "UNCHOKED",
+            "peer_id": self.id
+        }
+        unchoke_msg = encode_unchoked(raw_msg)
         send_msg(sock, unchoke_msg)
+        logging.info("Sent Unchoked")
     
     def send_choked(self, sock, peer):
         choke_msg = encode_choked(None)

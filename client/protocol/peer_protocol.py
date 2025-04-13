@@ -12,6 +12,7 @@ class PeerOpCode(Enum):
     REQUEST = 0x15
     PIECE = 0x16
     DONE = 0x17
+    DISCONNECT = 0x18
 
 def send_msg(sock, msg: bytes):
     try:
@@ -54,7 +55,8 @@ def encode_msg(opcode: str, data: dict):
             "UNCHOKED": encode_unchoked,
             "REQUEST": encode_request,
             "PIECE": encode_piece,
-            "DONE": encode_done
+            "DONE": encode_done,
+            "DISCONNECT": encode_disconnect
         }[opcode](data)
     except KeyError as e:
         logging.error(f"Invalid or missing opcode: {e}")
@@ -76,7 +78,8 @@ def decode_raw_msg(binary_data: bytes):
             PeerOpCode.UNCHOKED: decode_unchoked,
             PeerOpCode.REQUEST: decode_request,
             PeerOpCode.PIECE: decode_piece,
-            PeerOpCode.DONE: decode_done
+            PeerOpCode.DONE: decode_done,
+            PeerOpCode.DISCONNECT: decode_disconnect
         }[opcode](payload)
     except Exception as e:
         logging.error(f"Decode error: {e}")
@@ -97,20 +100,22 @@ def decode_handshake(data: bytes):
 
 # BITFIELD
 def encode_bitfield(data):
+    pieces_left = data.get("pieces_left")
     bit_str = data.get("str_bitfield")
     padded = bit_str.zfill(((len(bit_str) + 7) // 8) * 8)
     chunks = [padded[i:i+8] for i in range(0, len(padded), 8)]
     byte_list = [int(chunk, 2).to_bytes(1, 'big') for chunk in chunks]
     bitfield_bytes = b''.join(byte_list)
 
-    return struct.pack('>BI', PeerOpCode.BITFIELD.value, len(bit_str)) + bitfield_bytes
+    return struct.pack('>BII', PeerOpCode.BITFIELD.value, pieces_left, len(bit_str)) + bitfield_bytes
 
 def decode_bitfield(data):
-    bit_len = struct.unpack('>I',data[0:4])[0]
-    bitfield_payload = data[4:]
+    pieces_left, bit_len = struct.unpack('>II',data[0:8])
+    bitfield_payload = data[8:]
     full_bit_str = ''.join(f'{byte:08b}' for byte in bitfield_payload)
     return {
         "opcode": "BITFIELD",
+        "pieces_left": pieces_left,
         "str_bitfield": full_bit_str[-bit_len:]
     }
 
@@ -130,12 +135,9 @@ def decode_interested(data):
 # CHOKE
 
 def encode_choked(data=None):
-    print("innter")
     if data is None:
-        print("None quick")
         return _encode_choked_quick()
     else:
-        print("no NONE ID")
         return _encode_choked_id(data)
 
 def _encode_choked_quick():
@@ -213,10 +215,8 @@ def encode_piece(data):
     return struct.pack('>BII', PeerOpCode.PIECE.value, data.get("piece_index"), length) + piece
 
 def decode_piece(data):
-    print("check here")
     piece_index, piece_length = struct.unpack('>II', data[:8])
-    print(f"index; {piece_index}, length: {piece_length}")
-    piece = data[9:9+piece_length]
+    piece = data[8:8+piece_length]
     return {
         "opcode": "PIECE",
         "piece_index": piece_index,
@@ -230,4 +230,13 @@ def encode_done(data=None):
 def decode_done(data=None):
     return {
         "opcode": "DONE"
+    }
+
+# DISCONNECT
+def encode_disconnect(data=None):
+    return struct.pack('>B',PeerOpCode.DISCONNECT.value)
+
+def decode_disconnect(data=None):
+    return {
+        "opcode": "DISCONNECT"
     }

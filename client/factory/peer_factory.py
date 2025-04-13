@@ -9,14 +9,16 @@ class PeerStatus:
 
 
 class Peer:
-    def __init__(self,id, addr):
+    def __init__(self,sock, id, addr):
         self.status_lock = threading.Lock()
 
+        self.sock = sock
         self.id = id
         self.ip = addr[0]
         self.port = addr[1]
         self.status = PeerStatus()
         self.index_bitfield = {}
+        self.pieces_left = None
         
         
     def __eq__(self, other):
@@ -32,5 +34,5 @@ class Peer:
 
 class PeerFactory:
     @staticmethod
-    def new_peer(id, addr):
-        return Peer(id, addr)
+    def new_peer(sock, id, addr):
+        return Peer(sock, id, addr)
