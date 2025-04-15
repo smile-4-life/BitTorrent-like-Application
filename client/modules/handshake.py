@@ -23,12 +23,15 @@ class Handshake():
             self._select_peers_to_keep()
             
     def _perform_handshake(self, addr):
+        new_peer = None
+        sock = None
         try:
             sock = self.Peer_connection.connect_to_addr(addr)
             handshake_msg = self._build_handshake_msg()
             send_msg(sock, handshake_msg)
             logging.info(f"Sent handshake msg to {addr}")
             
+            sock.settimeout(1)
             msg = self.Peer_connection.receive_message(sock)
             peer_id = msg.get("peer_id")
             peer_port = msg.get("peer_port")
@@ -41,7 +44,15 @@ class Handshake():
 
             if self.Piece_manager.pieces_left == 0:
                 send_msg(sock, encode_done())
-
+        except OSError as e:
+            if new_peer:
+                self.Peer_manager.remove_active_peer(new_peer)
+            else:
+                self.Peer_manager.remove_raw_addr(addr)
+                
+            if sock is not None and sock.fileno() != -1:
+                sock.close()
+                logging.warning(f"Closed connection with {addr} during _perform_handshake.")
         except Exception as e:
             logging.error(f"Unexpected error in _handshake: {e}")
 
@@ -77,6 +88,7 @@ class Handshake():
     def _build_handshake_msg(self):
         return encode_handshake(
             {
+                "info_hash": self.Piece_manager.info_hash,
                 "peer_id": self.id,
                 "peer_port": self.port
             }

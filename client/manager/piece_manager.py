@@ -20,7 +20,8 @@ class PieceManager:
             self.piece_length,
             self.list_pieces,
             self.file_length,
-            self.pieces_count
+            self.pieces_count,
+            self.info_hash
         ) = Reader.read_torrent_file(self.metainfo_file_path)
         self.pieces_left = self.pieces_count
         self.downloaded_count = 0

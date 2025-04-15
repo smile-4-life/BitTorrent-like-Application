@@ -26,6 +26,7 @@ from connection.peer_connection import HandlePeer
 from utils.load_config import load_config
 from utils.torrent_reader import TorrentReader
 from utils.generate_id import generate_peer_id
+from utils.error import HandleError
 
 from state.leecher_choke import LeecherState
 from state.seeder_choke import SeederState
@@ -41,13 +42,22 @@ from handler.request_handler import HandleRequest
 from handler.piece_handler import HandlePiece
 from handler.base_handler import HandshakeHandler, InterestedHandler, ChokedHandler, UnchokedHandler, RequestHandler, PieceHandler
 
-CONFIG_PATH = "config\\client_config.json"
+
+CONFIG_PATH = os.path.join("config", "client_config.json")
+
 
 class Client(Observer, Subject):
     def __init__(self):
+
         self.id = generate_peer_id()
+        logging.info(f"My ID: {self.id}")
+
         self.ip = '0.0.0.0'  # should connect with tracker to get public IP
-        self.port = int(input("Enter port: "))
+
+        self.my_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.my_sock.bind(('0.0.0.0', 0))
+        self.port = self.my_sock.getsockname()[1]
+        logging.info(f"My port: {self.port}")
 
         self.Tracker_connection = HandleTracker()
         self.Peer_connection = HandlePeer()
@@ -78,6 +88,9 @@ class Client(Observer, Subject):
         self.Handshake_module = Handshake(*shared_args, self.Peer_factory)
         self.Choking_module = Choking(*shared_args, self.Choke_manager)
         self.Leeching_module = Leeching(*shared_args, self.Strategy_manager)
+
+        self.stop_event = threading.Event()
+        
 
             #=====Observer Parttern=====
 
@@ -121,15 +134,13 @@ class Client(Observer, Subject):
 
     def _listen(self):
         try:
-            server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            server_sock.bind(('0.0.0.0', self.port))
-            #server_sock.bind((self.ip, self.port))
-            server_sock.listen(10)
+            self.my_sock.listen(10)
             logging.info(f"Peer listener started on {self.ip}:{self.port}")
 
             with ThreadPoolExecutor(max_workers=10) as executor:
                 while True:
-                    client_sock, addr = server_sock.accept()
+                    client_sock, addr = self.my_sock.accept()
+                    client_sock.settimeout(2.0)
                     logging.info(f"Connection from {addr}")
                     executor.submit(self._handle_connection, client_sock, addr[0])
         except Exception as e:
@@ -137,10 +148,11 @@ class Client(Observer, Subject):
 
     def _handle_connection(self, sock, peer_ip):
         try:
-            while True:
-                print("In while")
+            while not self.stop_event.is_set():
                 msg = self.Peer_connection.receive_message(sock)
-                if not msg:
+                if msg == 0:
+                    continue
+                if msg == None:
                     return
         
                 opcode = msg.get("opcode")
@@ -153,10 +165,17 @@ class Client(Observer, Subject):
                 else:
                     logging.warning(f"Unknown opcode {opcode} from {peer_ip}")
                     break
+        except HandleError as e:
+            logging.info(f"{e}")
+
+        except OSError:
+            if not sock.fileno() == -1:
+                sock.close()
+                logging.warning(f"Closed connection with {peer_ip} during _handle_connection.")
         except Exception as e:
             logging.error(f"Unexpected error in _handle_connection: {e}")
         finally:
-            if sock:
+            if not sock.fileno() == -1:
                 sock.close()
                 logging.info(f"Closed socket with {peer_ip}.")
 
@@ -172,6 +191,7 @@ class Client(Observer, Subject):
             self.Leeching_module.start_leeching()
 
             input()
+            self.stop_event.set()
             self.unregister()
         except Exception as e:
             logging.error(f"Start-Client catched error: {e}")

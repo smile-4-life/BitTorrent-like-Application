@@ -1,6 +1,7 @@
 import os
 import bencodepy
 import logging
+import hashlib
 
 class TorrentReader:
     def read_torrent_file(self,torrent_file_path):
@@ -20,6 +21,7 @@ class TorrentReader:
             file_length = info.get(b'length')
             pieces_count = len(list_pieces)
             # default bitfield 0 indicate client has not had this piece 
+            info_hash = hashlib.sha1(bencodepy.encode(info)).digest()
         except Exception as e:
             logging.error(f"Error when dealing with torrent file: {e}")
-        return tracker_URL, file_name, piece_length, list_pieces, file_length, pieces_count
+        return tracker_URL, file_name, piece_length, list_pieces, file_length, pieces_count, info_hash

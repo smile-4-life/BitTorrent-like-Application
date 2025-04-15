@@ -11,12 +11,18 @@ class HandlePeer:
     def receive_message(self, sock):
         try:
             raw_msg = recv_msg(sock)
+            if raw_msg == None:
+                return
             msg = decode_raw_msg(raw_msg)
             logging.info(f"Received {msg['opcode']} message from {sock.getpeername()}")
             logging.debug(f"{msg}")
             return msg
+        except socket.timeout:
+            return 0
+        except OSError:
+            raise
         except Exception as e:
-            logging.error(f"Error during listen: {e}")
+            logging.error(f"Error in receive_message: {e}")
             raise
             return None
 

@@ -18,31 +18,34 @@ def send_msg(sock, msg: bytes):
     try:
         msg = struct.pack('>I', len(msg)) + msg
         sock.sendall(msg)
+    except socket.error as e:
+        raise
     except Exception as e:
-        logging.error(f"Error sending message: {e}")
-        raise ConnectionError("Connection was closed or failed to send data")
+        logging.error(f"Unexpected error in send_msg: {e}")
+        raise
 
 def recv_msg(sock):
     try:
         raw_msglen = recvall(sock, 4)
         msglen = struct.unpack('>I', raw_msglen)[0]
         return recvall(sock, msglen)
-    except ConnectionError as ce:
-        logging.warning(f"Connection issue: {ce}")
+    except OSError:
         raise
     except Exception as e:
-        logging.error(f"Protocol/data logic error: {e}")
-        return None
+        logging.error(f"Unexpected error in recv_msg {e}")
+        raise
 
 def recvall(sock, n: int):
-    data = bytearray()
-    while len(data) < n:
-        packet = sock.recv(n - len(data))
-        if not packet:
-            logging.error(f"Failed to receive expected data. Only {len(data)} bytes received, but {n} expected.")
-            raise ConnectionError("Connection was closed or failed to receive data")
-        data.extend(packet)
-    return data
+    try:
+        data = bytearray()
+        while len(data) < n:
+            packet = sock.recv(n - len(data))
+            if not packet:
+                raise ConnectionError("Connection was closed or fail to receive data")
+            data.extend(packet)
+        return data
+    except Exception:
+        raise
 
 #===== CORE =====
 def encode_msg(opcode: str, data: dict):
@@ -88,12 +91,17 @@ def decode_raw_msg(binary_data: bytes):
 
 # HANDSHAKE
 def encode_handshake(data):
-    return struct.pack('>B20sH', PeerOpCode.HANDSHAKE.value, data.get("peer_id").encode('utf-8'), data.get("peer_port"))
+    return struct.pack('>B20s20sH', 
+                        PeerOpCode.HANDSHAKE.value, 
+                        data.get('info_hash'), 
+                        data.get("peer_id").encode('utf-8'), 
+                        data.get("peer_port") )
 
 def decode_handshake(data: bytes):
-    peer_id, peer_port = struct.unpack('>20sH',data)
+    info_hash,peer_id, peer_port = struct.unpack('>20s20sH',data)
     return {
         "opcode": "HANDSHAKE",
+        "info_hash": info_hash,
         "peer_id": peer_id.decode('utf-8'),
         "peer_port": peer_port
     }
